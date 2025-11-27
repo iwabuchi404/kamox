@@ -1,0 +1,13 @@
+{
+    "name": "@kamox/plugin-chrome",
+    "version": "0.1.0",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "tsc"
+    },
+    "dependencies": {
+        "@kamox/core": "*",
+        "playwright": "^1.40.0"
+    }
+}
