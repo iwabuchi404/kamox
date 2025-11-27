@@ -1,0 +1,25 @@
+{
+  "name": "kamox",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Web Extension Dev Server",
+  "workspaces": [
+    "packages/*",
+    "cli",
+    "examples/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm test --workspaces",
+    "clean": "rm -rf dist node_modules packages/*/dist packages/*/node_modules cli/dist cli/node_modules examples/*/dist examples/*/node_modules",
+    "cli": "npm run start --workspace=kamox-cli"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "@types/node": "^20.10.0",
+    "eslint": "^8.56.0",
+    "prettier": "^3.1.0"
+  },
+  "author": "KamoX Team",
+  "license": "MIT"
+}
