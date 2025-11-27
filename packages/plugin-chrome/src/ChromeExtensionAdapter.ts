@@ -2,6 +2,15 @@ import { BaseDevServer } from '@kamox/core/dist/BaseDevServer.js';
 import { UICheckResult, ScriptCheckResult } from '@kamox/core/dist/types/common.js';
 import { chromium, BrowserContext, Page } from 'playwright';
 import path from 'path';
+import os from 'os';
+import fs from 'fs';
+import { 
+  generateDevManifest, 
+  generateDevBackground, 
+  copyProjectFiles, 
+  updateGitignore, 
+  cleanupDevDirectory 
+} from './utils/devManifest.js';
 
 export class ChromeExtensionAdapter extends BaseDevServer {
   private context: BrowserContext | null = null;
@@ -10,15 +19,49 @@ export class ChromeExtensionAdapter extends BaseDevServer {
   private lastBuildTime: string | null = null;
 
   async launch(): Promise<void> {
-    const extensionPath = path.resolve(this.state.config.projectPath);
+    const originalProjectPath = path.resolve(this.state.config.projectPath);
+    const devDir = path.join(originalProjectPath, '.kamox');
     
-    this.logger.log('info', `Launching Chrome with extension at: ${extensionPath}`, 'system');
+    this.logger.log('info', 'Setting up development environment...', 'system');
+    
+    // 既存の.kamoxディレクトリをクリーンアップ
+    cleanupDevDirectory(devDir);
+    
+    // プロジェクトファイルを.kamoxにコピー
+    this.logger.log('info', 'Copying project files to .kamox directory...', 'system');
+    copyProjectFiles(originalProjectPath, devDir);
+    
+    // 開発用manifest.jsonを生成
+    const originalManifestPath = path.join(originalProjectPath, 'manifest.json');
+    const devManifestPath = path.join(devDir, 'manifest.json');
+    this.logger.log('info', 'Generating development manifest.json...', 'system');
+    generateDevManifest(originalManifestPath, devManifestPath, {
+      addPermissions: ['tabs', 'activeTab'],
+      relaxCSP: true,
+      addDevPrefix: true
+    });
+    
+    // 開発用background.jsを生成
+    const devBackgroundPath = path.join(devDir, '_kamox_background.js');
+    this.logger.log('info', 'Generating development background worker...', 'system');
+    generateDevBackground(devBackgroundPath);
+    
+    // .gitignoreを更新
+    updateGitignore(originalProjectPath);
+    
+    // ユーザーデータディレクトリを明示的に指定（ログ取得のため）
+    const userDataDir = path.join(os.tmpdir(), `kamox_profile_${Date.now()}`);
+    
+    this.logger.log('info', `Launching Chrome with extension at: ${devDir}`, 'system');
+    this.logger.log('info', `User data directory: ${userDataDir}`, 'system');
 
-    this.context = await chromium.launchPersistentContext('', {
+    this.context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
       args: [
-        `--disable-extensions-except=${extensionPath}`,
-        `--load-extension=${extensionPath}`
+        `--disable-extensions-except=${devDir}`,
+        `--load-extension=${devDir}`,
+        '--enable-logging',
+        '--v=1'
       ]
     });
 
@@ -54,6 +97,73 @@ export class ChromeExtensionAdapter extends BaseDevServer {
         }
       } catch (e) {
         this.logger.log('warn', 'No Service Worker detected within timeout', 'system');
+        
+        // chrome_debug.logからエラーを確認
+        try {
+          const logPath = path.join(userDataDir, 'chrome_debug.log');
+          this.logger.log('info', `Checking for log file at: ${logPath}`, 'system');
+          
+          if (fs.existsSync(logPath)) {
+            // Windowsでのファイルロック回避のため、一時ファイルにコピーしてから読み込む
+            const tempLogPath = path.join(os.tmpdir(), `kamox_debug_copy_${Date.now()}.log`);
+            fs.copyFileSync(logPath, tempLogPath);
+            
+            const logContent = fs.readFileSync(tempLogPath, 'utf8');
+            fs.unlinkSync(tempLogPath); // コピーを削除
+            
+            // エラーに関連しそうな行を抽出
+            const errorLines = logContent.split('\n')
+              .filter(line => line.includes('error') || line.includes('Error') || line.includes('Manifest') || line.includes('Extension'))
+              .slice(-20); // 最後の20行のみ
+            
+            if (errorLines.length > 0) {
+              this.logger.log('error', 'Possible extension load errors found in chrome_debug.log:', 'system');
+              errorLines.forEach(line => this.logger.log('error', line.trim(), 'system'));
+            } else {
+              this.logger.log('info', 'No obvious errors found in chrome_debug.log', 'system');
+            }
+          } else {
+            this.logger.log('warn', `Log file not found at: ${logPath}`, 'system');
+          }
+        } catch (err: any) {
+          this.logger.log('error', `Failed to read chrome_debug.log: ${err.message}`, 'system');
+        }
+
+        // chrome://extensionsページも念のため確認
+        try {
+          const page = await this.context.newPage();
+          await page.goto('chrome://extensions');
+          
+          // 開発者モードを有効化
+          await page.waitForTimeout(1000);
+          
+          // デバッグ用：スクリーンショットを保存
+          const timestamp = new Date().getTime();
+          const screenshotPath = path.join(process.cwd(), 'screenshots', `extensions_page_${timestamp}.png`);
+          await page.screenshot({ path: screenshotPath });
+          this.logger.log('info', `Saved extensions page screenshot to: ${screenshotPath}`, 'system');
+
+          // chrome.management APIを使って拡張機能リストを取得
+          try {
+            const extensions = await page.evaluate(async () => {
+              // @ts-ignore
+              if (chrome && chrome.management && chrome.management.getAll) {
+                // @ts-ignore
+                return new Promise(resolve => chrome.management.getAll(resolve));
+              }
+              return null;
+            });
+            if (extensions) {
+              this.logger.log('info', `Installed extensions (via API): ${JSON.stringify(extensions)}`, 'system');
+            }
+          } catch (err) {
+            this.logger.log('warn', `Failed to get extensions via API: ${err}`, 'system');
+          }
+          
+          await page.close();
+        } catch (err: any) {
+          this.logger.log('error', `Failed to check chrome://extensions: ${err.message}`, 'system');
+        }
       }
     }
   }
