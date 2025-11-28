@@ -33,6 +33,19 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     
     // 開発用manifest.jsonを生成
     const originalManifestPath = path.join(originalProjectPath, 'manifest.json');
+    
+    // manifest.jsonからプロジェクト名を取得して上書き
+    try {
+      if (fs.existsSync(originalManifestPath)) {
+        const manifest = JSON.parse(fs.readFileSync(originalManifestPath, 'utf8'));
+        if (manifest.name) {
+          this.projectName = manifest.name;
+        }
+      }
+    } catch (e) {
+      this.logger.log('warn', `Failed to read manifest name: ${e}`, 'system');
+    }
+
     const devManifestPath = path.join(devDir, 'manifest.json');
     this.logger.log('info', 'Generating development manifest.json...', 'system');
     generateDevManifest(originalManifestPath, devManifestPath, {

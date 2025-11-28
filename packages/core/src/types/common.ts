@@ -61,4 +61,5 @@ export interface ServerStatus {
     checkIPC: boolean;
     checkCommand: boolean;
   };
+  projectName?: string;
 }

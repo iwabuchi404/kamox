@@ -5,3 +5,6 @@ dist/
 screenshots/
 test-results/
 .env
+
+temp_profile
+

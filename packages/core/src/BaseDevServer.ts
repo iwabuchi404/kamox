@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { 
   ServerConfig, 
   ServerState, 
@@ -16,6 +18,7 @@ export abstract class BaseDevServer implements IDevServer {
   protected state: ServerState;
   protected logger: Logger;
   protected screenshotManager: ScreenshotManager;
+  protected projectName: string = 'Unknown Project';
 
   constructor(config: ServerConfig) {
     this.logger = new Logger();
@@ -25,6 +28,19 @@ export abstract class BaseDevServer implements IDevServer {
       logs: this.logger.getLogs(),
       config
     };
+
+    // package.jsonからプロジェクト名を取得（デフォルト動作）
+    try {
+      const packageJsonPath = path.join(config.projectPath, 'package.json');
+      if (fs.existsSync(packageJsonPath)) {
+        const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+        if (pkg.name) {
+          this.projectName = pkg.name;
+        }
+      }
+    } catch (e) {
+      // 無視
+    }
   }
 
   // 抽象メソッド（サブクラスで実装）
@@ -81,7 +97,8 @@ export abstract class BaseDevServer implements IDevServer {
       isRebuilding: this.state.isRebuilding,
       buildCount: this.getBuildCount(),
       lastBuildTime: this.getLastBuildTime(),
-      features: this.getFeatures()
+      features: this.getFeatures(),
+      projectName: this.projectName
     };
   }
 
