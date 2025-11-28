@@ -48,8 +48,8 @@ export class DevServerAPI {
 
     this.app.post('/check-ui', async (req: Request, res: Response) => {
       try {
-        const { url } = req.body;
-        const result = await this.adapter.checkUI({ url });
+        const { url, actions } = req.body;
+        const result = await this.adapter.checkUI({ url, actions });
         res.json({
           success: true,
           timestamp: new Date().toISOString(),

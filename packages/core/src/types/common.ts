@@ -41,6 +41,17 @@ export interface UICheckResult {
   };
 }
 
+export interface UserAction {
+  type: 'click' | 'type' | 'wait' | 'drag' | 'scroll';
+  selector?: string;
+  text?: string;
+  ms?: number;
+  source?: string;
+  target?: string;
+  x?: number;
+  y?: number;
+}
+
 export interface ScriptCheckResult {
   url: string;
   injected: boolean;

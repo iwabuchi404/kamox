@@ -1,5 +1,5 @@
 import { BaseDevServer } from '@kamox/core/dist/BaseDevServer.js';
-import { UICheckResult, ScriptCheckResult } from '@kamox/core/dist/types/common.js';
+import { UICheckResult, ScriptCheckResult, UserAction } from '@kamox/core/dist/types/common.js';
 import { chromium, BrowserContext, Page } from 'playwright';
 import path from 'path';
 import os from 'os';
@@ -70,6 +70,7 @@ export class ChromeExtensionAdapter extends BaseDevServer {
 
     this.context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
+      viewport: { width: 800, height: 600 }, // Chrome拡張機能Popupの最大サイズに合わせる
       args: [
         `--disable-extensions-except=${devDir}`,
         `--load-extension=${devDir}`,
@@ -194,11 +195,11 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     this.lastBuildTime = new Date().toISOString();
   }
 
-  async checkUI(options?: { url?: string }): Promise<UICheckResult> {
-    return this.checkPopup(options?.url);
+  async checkUI(options?: { url?: string; actions?: UserAction[] }): Promise<UICheckResult> {
+    return this.checkPopup(options?.url, options?.actions);
   }
 
-  async checkPopup(targetUrl?: string): Promise<UICheckResult> {
+  async checkPopup(targetUrl?: string, actions?: UserAction[]): Promise<UICheckResult> {
     if (!this.context || !this.extensionId) {
       throw new Error('Extension not loaded');
     }
@@ -207,7 +208,19 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     
     // ターゲットURLが指定されている場合、先にそのページを開く
     let targetPage: Page | null = null;
-    if (targetUrl) {
+    
+    // Tab Mixerデバッグ用ロジック
+    if (targetUrl === 'debug:tab_mixer') {
+      this.logger.log('info', 'Starting Tab Mixer debug scenario...', 'system');
+      
+      // 複数のタブを開く
+      await this.context.newPage().then(p => p.goto('https://example.com'));
+      await this.context.newPage().then(p => p.goto('https://google.com'));
+      // await this.context.newPage().then(p => p.goto('https://github.com')); // 時間短縮のため2つで
+      
+      // 少し待機してタブ情報を更新させる
+      await new Promise(r => setTimeout(r, 2000));
+    } else if (targetUrl) {
       this.logger.log('info', `Opening target page: ${targetUrl}`, 'system');
       targetPage = await this.context.newPage();
       await targetPage.goto(targetUrl);
@@ -235,55 +248,146 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     
     const loadTimeStart = Date.now();
 
-    // ボタンが存在すればクリックして動作確認
-    try {
-      const button = await popup.$('#getInfo');
-      if (button) {
-        this.logger.log('info', 'Clicking #getInfo button...', pageId);
-        await button.click();
-        
-        // 結果が表示されるのを待つ（Loading... から変化するまで、またはタイムアウト）
-        await popup.waitForFunction(() => {
-          const result = document.getElementById('result');
-          return result && result.textContent !== 'Ready' && result.textContent !== 'Loading...';
-        }, null, { timeout: 5000 }).catch(() => {
-          this.logger.log('warn', 'Timeout waiting for result update', pageId);
-        });
+    // アクション実行
+    if (actions && actions.length > 0) {
+      this.logger.log('info', `Executing ${actions.length} actions...`, pageId);
+      for (const action of actions) {
+        try {
+          switch (action.type) {
+            case 'click':
+              if (action.selector) {
+                this.logger.log('info', `Action: Click ${action.selector}`, pageId);
+                await popup.click(action.selector);
+              }
+              break;
+            case 'type':
+              if (action.selector && action.text) {
+                this.logger.log('info', `Action: Type "${action.text}" into ${action.selector}`, pageId);
+                await popup.fill(action.selector, action.text);
+              }
+              break;
+            case 'wait':
+              if (action.ms) {
+                this.logger.log('info', `Action: Wait ${action.ms}ms`, pageId);
+                await popup.waitForTimeout(action.ms);
+              }
+              break;
+            case 'drag':
+              if (action.source && action.target) {
+                this.logger.log('info', `Action: Drag ${action.source} to ${action.target}`, pageId);
+                
+                try {
+                  const sourceElement = await popup.waitForSelector(action.source, { timeout: 2000 });
+                  const targetElement = await popup.waitForSelector(action.target, { timeout: 2000 });
+                  
+                  if (sourceElement && targetElement) {
+                    const sourceBox = await sourceElement.boundingBox();
+                    const targetBox = await targetElement.boundingBox();
+                    
+                    if (sourceBox && targetBox) {
+                      // ドラッグ開始位置（中心）
+                      const startX = sourceBox.x + sourceBox.width / 2;
+                      const startY = sourceBox.y + sourceBox.height / 2;
+                      
+                      // ドロップ位置（中心）
+                      const endX = targetBox.x + targetBox.width / 2;
+                      const endY = targetBox.y + targetBox.height / 2;
+                      
+                      await popup.mouse.move(startX, startY);
+                      await popup.mouse.down();
+                      
+                      // dnd-kitのactivationConstraint(8px)を超えるために少し動かす
+                      await popup.mouse.move(startX + 10, startY + 10, { steps: 5 });
+                      await popup.waitForTimeout(200); // ドラッグ開始を待つ
+                      
+                      // ターゲットへ移動
+                      await popup.mouse.move(endX, endY, { steps: 20 });
+                      await popup.waitForTimeout(200); // ドロップ判定を待つ
+                      
+                      await popup.mouse.up();
+                    }
+                  }
+                } catch (e: any) {
+                  this.logger.log('warn', `Drag failed: ${e.message}`, pageId);
+                  // フォールバックとして通常のdragAndDropを試す
+                  await popup.dragAndDrop(action.source, action.target);
+                }
+              }
+              break;
+            case 'scroll':
+              if (action.x !== undefined && action.y !== undefined) {
+                 this.logger.log('info', `Action: Scroll to ${action.x}, ${action.y}`, pageId);
+                 await popup.evaluate(({x, y}) => window.scrollTo(x, y), {x: action.x, y: action.y});
+              }
+              break;
+          }
+        } catch (e: any) {
+          this.logger.log('error', `Action failed: ${e.message}`, pageId);
+          errors.push(`Action failed: ${e.message}`);
+        }
       }
-    } catch (e: any) {
-      this.logger.log('error', `Interaction failed: ${e.message}`, pageId);
-      errors.push(`Interaction failed: ${e.message}`);
+    } else {
+      // デフォルト動作（ボタンクリック）
+      try {
+        const button = await popup.$('#getInfo');
+        if (button) {
+          this.logger.log('info', 'Clicking #getInfo button...', pageId);
+          await button.click();
+          
+          // 結果が表示されるのを待つ
+          await popup.waitForFunction(() => {
+            const result = document.getElementById('result');
+            return result && result.textContent !== 'Ready' && result.textContent !== 'Loading...';
+          }, null, { timeout: 5000 }).catch(() => {
+            this.logger.log('warn', 'Timeout waiting for result update', pageId);
+          });
+        }
+      } catch (e: any) {
+        this.logger.log('error', `Interaction failed: ${e.message}`, pageId);
+        errors.push(`Interaction failed: ${e.message}`);
+      }
     }
     
     // スクリーンショット
-    const screenshotBuffer = await popup.screenshot();
-    const screenshotPath = await this.screenshotManager.saveScreenshot(screenshotBuffer, 'popup');
+    const timestamp = new Date().getTime();
+    const screenshotPath = path.join(process.cwd(), 'screenshots', `popup_${timestamp}.png`);
+    let screenshotBuffer: Buffer | undefined;
+    
+    try {
+      screenshotBuffer = await popup.screenshot({ path: screenshotPath, fullPage: true });
+      this.logger.log('info', `Saved popup screenshot to: ${screenshotPath}`, pageId);
+    } catch (e: any) {
+      this.logger.log('error', `Failed to take screenshot: ${e.message}`, pageId);
+      errors.push(`Screenshot failed: ${e.message}`);
+    }
 
-    // DOM情報取得
-    const domInfo = await popup.evaluate(() => {
-      const resultEl = document.getElementById('result');
-      return {
-        title: document.title,
-        bodyText: document.body.innerText.substring(0, 500),
-        resultText: resultEl ? resultEl.innerText : null,
-        elementCounts: {
-          button: document.querySelectorAll('button').length,
-          input: document.querySelectorAll('input').length,
-          div: document.querySelectorAll('div').length
-        },
-        html: document.body.innerHTML.substring(0, 1000) // デバッグ用
-      };
-    });
+    // DOM取得
+    let dom: any = {};
+    try {
+      dom = await popup.evaluate(() => {
+        return {
+          title: document.title,
+          bodyText: document.body.innerText,
+          resultText: document.getElementById('result')?.innerText || '',
+          html: document.documentElement.outerHTML
+        };
+      });
+    } catch (e: any) {
+      this.logger.log('error', `Failed to get DOM: ${e.message}`, pageId);
+    }
 
+    // ページを閉じる
     await popup.close();
+    
+    // ターゲットページも閉じる
     if (targetPage) {
       await targetPage.close();
     }
 
     return {
       loaded: true,
-      screenshot: screenshotPath,
-      dom: domInfo,
+      screenshot: `screenshots/popup_${timestamp}.png`,
+      dom,
       logs: this.logger.getLogs().pages[pageId] || [],
       errors,
       performance: {
@@ -294,58 +398,53 @@ export class ChromeExtensionAdapter extends BaseDevServer {
 
   async checkScript(url: string = 'https://example.com'): Promise<ScriptCheckResult> {
     if (!this.context) {
-      throw new Error('Browser context not initialized');
+      throw new Error('Chrome environment not running');
     }
 
     this.logger.log('info', `Checking Content Script on ${url}...`, 'system');
-
-    const pageId = `content_${Date.now()}`;
+    
+    const pageId = `script_${Date.now()}`;
     const page = await this.context.newPage();
-
+    
     // ログ収集
     page.on('console', msg => {
       this.logger.log(msg.type() as any, msg.text(), pageId);
     });
 
-    await page.goto(url);
-    await page.waitForLoadState('domcontentloaded');
-    
-    // 少し待機してContent Scriptが実行されるのを待つ
-    await page.waitForTimeout(1000);
-
-    // 注入確認（例: 特定の属性やグローバル変数の確認）
-    // ここでは汎用的なチェックを行うが、実際にはプロジェクト固有のチェックが必要になる場合も
-    const injectionCheck = await page.evaluate(() => {
-      // KamoXのサンプル拡張では body に data-kamox-injected 属性を付与することを想定
-      const bodyAttr = document.body.getAttribute('data-kamox-injected');
-      
-      // または特定のクラス名を持つ要素の存在確認
-      const customElements = document.querySelectorAll('.kamox-element').length;
-
-      return {
-        bodyAttr,
-        customElements,
-        title: document.title
-      };
+    const errors: string[] = [];
+    page.on('pageerror', err => {
+      errors.push(err.message);
+      this.logger.log('error', err.message, pageId);
     });
 
-    const screenshotBuffer = await page.screenshot();
-    const screenshotPath = await this.screenshotManager.saveScreenshot(screenshotBuffer, 'content');
+    await page.goto(url);
+    await page.waitForLoadState('domcontentloaded');
+
+    // スクリプト注入確認（例：特定の要素や変数の存在確認）
+    // ここでは単純にbodyの背景色が変わっているかなどをチェックするロジックを想定
+    // 実際には拡張機能の仕様に合わせてカスタマイズが必要
+    
+    const injected = await page.evaluate(() => {
+      // 例: windowオブジェクトに特定のプロパティが追加されているか
+      // @ts-ignore
+      return window.myExtensionLoaded === true || document.body.getAttribute('data-extension-loaded') === 'true';
+    });
+
+    // スクリーンショット
+    const timestamp = new Date().getTime();
+    const screenshotPath = path.join(process.cwd(), 'screenshots', `script_${timestamp}.png`);
+    await page.screenshot({ path: screenshotPath });
 
     await page.close();
 
-    const injected = !!injectionCheck.bodyAttr || injectionCheck.customElements > 0;
-
     return {
       url,
-      injected,
-      checks: injectionCheck,
-      screenshot: screenshotPath,
+      injected: !!injected,
+      screenshot: `screenshots/script_${timestamp}.png`,
       logs: this.logger.getLogs().pages[pageId] || []
     };
   }
 
-  // オーバーライド
   protected getBuildCount(): number {
     return this.buildCount;
   }
