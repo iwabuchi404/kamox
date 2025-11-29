@@ -20,7 +20,7 @@ kamox chrome --auto-build
 
 ## Documentation
 
-For full documentation, please visit the [KamoX GitHub repository](https://github.com/yourorg/kamox).
+For full documentation, please visit the [KamoX GitHub repository](https://github.com/iwabuchi404/kamox).
 
 ## License
 

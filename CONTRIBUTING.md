@@ -13,7 +13,7 @@ KamoX is a monorepo managed by npm workspaces.
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourorg/kamox.git
+   git clone https://github.com/iwabuchi404/kamox
    cd kamox
    ```
 

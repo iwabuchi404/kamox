@@ -16,7 +16,7 @@ This is a library package used by KamoX plugins. For end-user documentation, ple
 
 ## Documentation
 
-For full documentation, please visit the [KamoX GitHub repository](https://github.com/yourorg/kamox).
+For full documentation, please visit the [KamoX GitHub repository](https://github.com/iwabuchi404/kamox).
 
 ## License
 
