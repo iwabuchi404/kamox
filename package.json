@@ -5,8 +5,7 @@
   "description": "Web Extension Dev Server",
   "workspaces": [
     "packages/*",
-    "cli",
-    "examples/*"
+    "cli"
   ],
   "scripts": {
     "build": "npm run build --workspaces",
