@@ -1,73 +1,69 @@
 # ![KamoX Logo](images/logo_20251127.png) KamoX - Web Extension Dev Server
 
-AIコーディングエージェントがChrome拡張機能・Electronアプリ・VSCode拡張をライブで確認しながら開発できる、プラグイン型HTTP APIサーバー。
+**English** | [日本語](README_ja.md)
 
-## 特徴
+A plugin-based HTTP API server that allows AI coding agents to live-preview and develop Chrome Extensions, Electron apps, and VSCode extensions.
 
-- **AIフレンドリー**: HTTP API経由でビルド、UI確認、ログ取得が可能
-- **プラグインアーキテクチャ**: Chrome拡張、Electron、VSCode拡張に対応（現在はChromeのみ）
-- **自動化**: スクリーンショット撮影、DOM情報取得、ログ収集を自動化
-- **堅牢なエラー検出**: 拡張機能のロードエラーや実行時エラーを自動検出し、ログとダッシュボードで通知
-- **開発ダッシュボード**: サーバーの状態、エラー、ログをブラウザでリアルタイムに確認可能
+## Features
+
+- **AI-Friendly**: Build, verify UI, and retrieve logs via HTTP API.
+- **Plugin Architecture**: Supports Chrome Extensions, Electron, and VSCode extensions (currently Chrome only).
+- **Automation**: Automates screenshots, DOM info retrieval, and log collection.
+- **Robust Error Detection**: Automatically detects extension load errors and runtime errors, notifying via logs and dashboard.
+- **Development Dashboard**: Real-time verification of server status, errors, and logs in the browser.
 
 > [!TIP]
-> **For AI Agents**: 詳細なAPI利用ガイドは [docs/ai-usage.md](docs/ai-usage.md) を参照してください。
+> **For AI Agents**: Please refer to [docs/ai-usage.md](docs/ai-usage.md) for detailed API usage guide.
 
-## クイックスタート（開発者向け）
-
-### 1. KamoXのセットアップ
+## Installation
 
 ```bash
-# リポジトリをクローン
-git clone https://github.com/yourorg/kamox.git
-cd kamox
-
-# 依存関係のインストール
-npm install
-
-# KamoXをビルド
-npm run build
+npm install -g kamox
 ```
 
-### 2. Chrome拡張プロジェクトでの使用
+## Quick Start
+
+### For Chrome Extension Projects
 
 ```bash
-# 拡張機能プロジェクトのディレクトリに移動
+# Go to your extension project directory
 cd /path/to/your-extension
 
-# プロジェクトの設定を自動検出（推奨）
-node /path/to/kamox/cli/dist/index.js detect
+# Auto-detect project configuration (Recommended)
+kamox detect
 
-# KamoXサーバーを起動（自動ビルド有効）
-node /path/to/kamox/cli/dist/index.js chrome --auto-build
+# Start KamoX server (with auto-build enabled)
+kamox chrome --auto-build
 ```
 
-## 使い方
+> **Note**: If you want to run from source code as a contributor, please refer to [CONTRIBUTING.md](CONTRIBUTING.md).
 
-### 基本コマンド
+## Usage
+
+### Basic Commands
 
 ```bash
-# ヘルプを表示
-node cli/dist/index.js --help
+# Show help
+kamox --help
 
-# Chrome拡張開発サーバーを起動
-node cli/dist/index.js chrome [options]
+# Start Chrome Extension development server
+kamox chrome [options]
 ```
 
-### オプション
+### Options
 
-| オプション | 説明 | デフォルト |
-|------------|------|------------|
-| `-p, --port <number>` | サーバーポート番号 | `3000` |
-| `-o, --output <path>` | ビルド出力ディレクトリ | `dist` |
-| `-b, --build-command <cmd>` | ビルドコマンド | `npm run build` |
-| `-c, --config <path>` | 設定ファイルパス | `kamox.config.json` |
-| `--verbose` | 詳細なログと設定を表示 | `false` |
-| `--auto-build` | 出力ディレクトリがない場合に自動ビルド | `false` |
+| Option | Description | Default |
+|--------|-------------|---------|
+| `-p, --port <number>` | Server port number | `3000` |
+| `-o, --output <path>` | Build output directory | `dist` |
+| `-b, --build-command <cmd>` | Build command | `npm run build` |
+| `-c, --config <path>` | Config file path | `kamox.config.json` |
+| `--verbose` | Show detailed logs and config | `false` |
+| `--auto-build` | Automatically build if output directory is missing | `false` |
 
-### 設定ファイル (kamox.config.json)
+### Configuration File (kamox.config.json)
 
-プロジェクトルートに `kamox.config.json` を作成すると、毎回オプションを指定する必要がなくなります。
+Creating a `kamox.config.json` in your project root saves you from specifying options every time.
 
 ```json
 {
@@ -78,46 +74,46 @@ node cli/dist/index.js chrome [options]
 }
 ```
 
-`kamox detect` コマンドを使用すると、プロジェクト構造から推奨設定を表示できます。
+Use `kamox detect` command to see recommended settings based on your project structure.
 
-## ダッシュボード
+## Dashboard
 
-KamoXサーバー起動後、コンソールに表示されるURL（例: `http://localhost:3000/`）にアクセスすると、以下の機能を持つダッシュボードが表示されます：
+After starting the KamoX server, access the URL shown in the console (e.g., `http://localhost:3000/`) to see the dashboard with the following features:
 
-- **ステータス確認**: サーバーの稼働状況や環境情報の確認
-- **エラー通知**: 拡張機能のロードエラーや実行時エラーの即時確認
-- **ログ閲覧**: 直近のシステムログの確認
-- **リビルド**: ワンクリックで拡張機能の再ビルドと再読み込み
+- **Status Check**: Check server status and environment info.
+- **Error Notification**: Instant check for extension load errors and runtime errors.
+- **Log Viewer**: View recent system logs.
+- **Rebuild**: Rebuild and reload the extension with one click.
 
 ## API
 
-| Method | Path | 説明 |
-|--------|------|------|
-| GET | `/status` | サーバー状態確認 |
-| POST | `/rebuild` | プロジェクトのリビルド |
-| POST | `/check-ui` | UI表示確認（Popup等） |
-| POST | `/check-script` | Content Script確認 |
-| GET | `/logs` | ログ取得 |
-| GET | `/` | 開発ダッシュボード |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/status` | Check server status |
+| POST | `/rebuild` | Rebuild project |
+| POST | `/check-ui` | Verify UI (Popup, etc.) |
+| POST | `/check-script` | Verify Content Script |
+| GET | `/logs` | Get logs |
+| GET | `/` | Development Dashboard |
 
-## トラブルシューティング
+## Troubleshooting
 
-### "Output directory not found" エラー
+### "Output directory not found" Error
 
-ビルド出力ディレクトリ（デフォルトは `dist`）が見つからない場合に発生します。
+Occurs when the build output directory (default `dist`) is not found.
 
-**解決策:**
-1. プロジェクトをビルドしてください: `npm run build`
-2. または、`--auto-build` オプションを使用してください
-3. 出力先が異なる場合は `--output` オプションで指定してください
+**Solution:**
+1. Build your project: `npm run build`
+2. Or use `--auto-build` option
+3. Specify output directory with `--output` option if different
 
-### 拡張機能がロードされない
+### Extension not loaded
 
-**解決策:**
-1. `manifest.json` が出力ディレクトリに含まれているか確認してください
-2. ダッシュボード (`http://localhost:3000`) でエラーログを確認してください
-3. `--verbose` オプションを付けて起動し、詳細なログを確認してください
+**Solution:**
+1. Check if `manifest.json` is included in the output directory
+2. Check error logs on the dashboard (`http://localhost:3000`)
+3. Run with `--verbose` option to see detailed logs
 
-## ライセンス
+## License
 
 MIT
