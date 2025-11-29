@@ -120,7 +120,7 @@ export class DevServerAPI {
 
     // ロゴ配信
     this.app.get('/logo.png', (req: Request, res: Response) => {
-      const logoPath = path.join('D:\\work\\kamox\\images\\logo_20251127.png');
+      const logoPath = path.join(__dirname, '../../images/logo_20251127.png');
       if (fs.existsSync(logoPath)) {
         res.sendFile(logoPath);
       } else {

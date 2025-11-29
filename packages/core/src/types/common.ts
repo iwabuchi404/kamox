@@ -3,6 +3,7 @@ export interface ServerConfig {
   projectPath: string;
   buildCommand?: string;
   environment: 'chrome' | 'electron' | 'vscode';
+  workDir?: string;
 }
 
 export interface LogEntry {

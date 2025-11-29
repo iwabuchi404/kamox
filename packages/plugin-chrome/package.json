@@ -9,5 +9,12 @@
     "dependencies": {
         "@kamox/core": "*",
         "playwright": "^1.40.0"
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "publishConfig": {
+        "access": "public"
     }
 }

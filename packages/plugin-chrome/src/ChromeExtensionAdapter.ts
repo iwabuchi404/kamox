@@ -1,3 +1,4 @@
+import { validateUrl } from '@kamox/core/dist/utils/security.js';
 import { BaseDevServer } from '@kamox/core/dist/BaseDevServer.js';
 import { UICheckResult, ScriptCheckResult, UserAction } from '@kamox/core/dist/types/common.js';
 import { chromium, BrowserContext, Page } from 'playwright';
@@ -20,7 +21,23 @@ export class ChromeExtensionAdapter extends BaseDevServer {
 
   async launch(): Promise<void> {
     const originalProjectPath = path.resolve(this.state.config.projectPath);
-    const devDir = path.join(originalProjectPath, '.kamox');
+    const rootDir = this.state.config.workDir ? path.resolve(this.state.config.workDir) : originalProjectPath;
+    const workDir = path.join(rootDir, '.kamox');
+    const devDir = workDir; // .kamox root is used as dev extension dir for now, or maybe a subdir?
+    // Actually, devManifest.ts utilities assume devDir is where we copy files to.
+    // Let's use .kamox/extension for the extension files to keep root clean?
+    // But existing code uses devDir as the target.
+    // Let's keep using devDir as the target for now, but ensure it is .kamox.
+    
+    // Ensure .kamox directory exists
+    if (!fs.existsSync(workDir)) {
+      fs.mkdirSync(workDir, { recursive: true });
+    }
+
+    const screenshotsDir = path.join(workDir, 'screenshots');
+    if (!fs.existsSync(screenshotsDir)) {
+      fs.mkdirSync(screenshotsDir, { recursive: true });
+    }
     
     this.logger.log('info', 'Setting up development environment...', 'system');
     
@@ -153,7 +170,10 @@ export class ChromeExtensionAdapter extends BaseDevServer {
           
           // デバッグ用：スクリーンショットを保存
           const timestamp = new Date().getTime();
-          const screenshotPath = path.join(process.cwd(), 'screenshots', `extensions_page_${timestamp}.png`);
+          const rootDir = this.state.config.workDir ? path.resolve(this.state.config.workDir) : path.resolve(this.state.config.projectPath);
+          const workDir = path.join(rootDir, '.kamox');
+          const screenshotsDir = path.join(workDir, 'screenshots');
+          const screenshotPath = path.join(screenshotsDir, `extensions_page_${timestamp}.png`);
           await page.screenshot({ path: screenshotPath });
           this.logger.log('info', `Saved extensions page screenshot to: ${screenshotPath}`, 'system');
 
@@ -202,6 +222,14 @@ export class ChromeExtensionAdapter extends BaseDevServer {
   async checkPopup(targetUrl?: string, actions?: UserAction[]): Promise<UICheckResult> {
     if (!this.context || !this.extensionId) {
       throw new Error('Extension not loaded');
+    }
+
+    if (targetUrl && targetUrl !== 'debug:tab_mixer') {
+      try {
+        validateUrl(targetUrl);
+      } catch (e: any) {
+        throw new Error(`Invalid target URL: ${e.message}`);
+      }
     }
 
     this.logger.log('info', 'Checking Popup UI...', 'system');
@@ -350,7 +378,13 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     
     // スクリーンショット
     const timestamp = new Date().getTime();
-    const screenshotPath = path.join(process.cwd(), 'screenshots', `popup_${timestamp}.png`);
+    const rootDir = this.state.config.workDir ? path.resolve(this.state.config.workDir) : path.resolve(this.state.config.projectPath);
+    const workDir = path.join(rootDir, '.kamox');
+    const screenshotsDir = path.join(workDir, 'screenshots');
+    if (!fs.existsSync(screenshotsDir)) {
+      fs.mkdirSync(screenshotsDir, { recursive: true });
+    }
+    const screenshotPath = path.join(screenshotsDir, `popup_${timestamp}.png`);
     let screenshotBuffer: Buffer | undefined;
     
     try {
@@ -386,7 +420,7 @@ export class ChromeExtensionAdapter extends BaseDevServer {
 
     return {
       loaded: true,
-      screenshot: `screenshots/popup_${timestamp}.png`,
+      screenshot: screenshotPath,
       dom,
       logs: this.logger.getLogs().pages[pageId] || [],
       errors,
@@ -399,6 +433,12 @@ export class ChromeExtensionAdapter extends BaseDevServer {
   async checkScript(url: string = 'https://example.com'): Promise<ScriptCheckResult> {
     if (!this.context) {
       throw new Error('Chrome environment not running');
+    }
+
+    try {
+      validateUrl(url);
+    } catch (e: any) {
+      throw new Error(`Invalid target URL: ${e.message}`);
     }
 
     this.logger.log('info', `Checking Content Script on ${url}...`, 'system');
@@ -432,7 +472,13 @@ export class ChromeExtensionAdapter extends BaseDevServer {
 
     // スクリーンショット
     const timestamp = new Date().getTime();
-    const screenshotPath = path.join(process.cwd(), 'screenshots', `script_${timestamp}.png`);
+    const rootDir = this.state.config.workDir ? path.resolve(this.state.config.workDir) : path.resolve(this.state.config.projectPath);
+    const workDir = path.join(rootDir, '.kamox');
+    const screenshotsDir = path.join(workDir, 'screenshots');
+    if (!fs.existsSync(screenshotsDir)) {
+      fs.mkdirSync(screenshotsDir, { recursive: true });
+    }
+    const screenshotPath = path.join(screenshotsDir, `script_${timestamp}.png`);
     await page.screenshot({ path: screenshotPath });
 
     await page.close();
@@ -440,7 +486,7 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     return {
       url,
       injected: !!injected,
-      screenshot: `screenshots/script_${timestamp}.png`,
+      screenshot: screenshotPath,
       logs: this.logger.getLogs().pages[pageId] || []
     };
   }

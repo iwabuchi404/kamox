@@ -1,5 +1,5 @@
 {
-    "name": "kamox-cli",
+    "name": "kamox",
     "version": "0.1.0",
     "bin": {
         "kamox": "./dist/index.js"
@@ -17,5 +17,12 @@
     "devDependencies": {
         "@types/node": "^20.10.0"
     },
-    "type": "module"
+    "type": "module",
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "publishConfig": {
+        "access": "public"
+    }
 }

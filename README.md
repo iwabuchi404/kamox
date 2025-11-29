@@ -13,26 +13,76 @@ AIコーディングエージェントがChrome拡張機能・Electronアプリ�
 > [!TIP]
 > **For AI Agents**: 詳細なAPI利用ガイドは [docs/ai-usage.md](docs/ai-usage.md) を参照してください。
 
-## インストール
+## クイックスタート（開発者向け）
+
+### 1. KamoXのセットアップ
 
 ```bash
+# リポジトリをクローン
+git clone https://github.com/yourorg/kamox.git
+cd kamox
+
+# 依存関係のインストール
 npm install
+
+# KamoXをビルド
 npm run build
 ```
 
-## 使い方（Chrome拡張）
-
-1. Chrome拡張プロジェクトをビルドします（`dist`ディレクトリ等に出力）
-2. KamoXサーバーを起動します：
+### 2. Chrome拡張プロジェクトでの使用
 
 ```bash
-# CLIから起動
-node cli/dist/index.js chrome --project-path=/absolute/path/to/dist
+# 拡張機能プロジェクトのディレクトリに移動
+cd /path/to/your-extension
+
+# プロジェクトの設定を自動検出（推奨）
+node /path/to/kamox/cli/dist/index.js detect
+
+# KamoXサーバーを起動（自動ビルド有効）
+node /path/to/kamox/cli/dist/index.js chrome --auto-build
 ```
+
+## 使い方
+
+### 基本コマンド
+
+```bash
+# ヘルプを表示
+node cli/dist/index.js --help
+
+# Chrome拡張開発サーバーを起動
+node cli/dist/index.js chrome [options]
+```
+
+### オプション
+
+| オプション | 説明 | デフォルト |
+|------------|------|------------|
+| `-p, --port <number>` | サーバーポート番号 | `3000` |
+| `-o, --output <path>` | ビルド出力ディレクトリ | `dist` |
+| `-b, --build-command <cmd>` | ビルドコマンド | `npm run build` |
+| `-c, --config <path>` | 設定ファイルパス | `kamox.config.json` |
+| `--verbose` | 詳細なログと設定を表示 | `false` |
+| `--auto-build` | 出力ディレクトリがない場合に自動ビルド | `false` |
+
+### 設定ファイル (kamox.config.json)
+
+プロジェクトルートに `kamox.config.json` を作成すると、毎回オプションを指定する必要がなくなります。
+
+```json
+{
+  "mode": "chrome",
+  "output": "./dist",
+  "buildCommand": "npm run build",
+  "port": 3000
+}
+```
+
+`kamox detect` コマンドを使用すると、プロジェクト構造から推奨設定を表示できます。
 
 ## ダッシュボード
 
-KamoXサーバー起動後、ブラウザで `http://localhost:3000/` にアクセスすると、以下の機能を持つダッシュボードが表示されます：
+KamoXサーバー起動後、コンソールに表示されるURL（例: `http://localhost:3000/`）にアクセスすると、以下の機能を持つダッシュボードが表示されます：
 
 - **ステータス確認**: サーバーの稼働状況や環境情報の確認
 - **エラー通知**: 拡張機能のロードエラーや実行時エラーの即時確認
@@ -49,6 +99,24 @@ KamoXサーバー起動後、ブラウザで `http://localhost:3000/` にアク�
 | POST | `/check-script` | Content Script確認 |
 | GET | `/logs` | ログ取得 |
 | GET | `/` | 開発ダッシュボード |
+
+## トラブルシューティング
+
+### "Output directory not found" エラー
+
+ビルド出力ディレクトリ（デフォルトは `dist`）が見つからない場合に発生します。
+
+**解決策:**
+1. プロジェクトをビルドしてください: `npm run build`
+2. または、`--auto-build` オプションを使用してください
+3. 出力先が異なる場合は `--output` オプションで指定してください
+
+### 拡張機能がロードされない
+
+**解決策:**
+1. `manifest.json` が出力ディレクトリに含まれているか確認してください
+2. ダッシュボード (`http://localhost:3000`) でエラーログを確認してください
+3. `--verbose` オプションを付けて起動し、詳細なログを確認してください
 
 ## ライセンス
 
