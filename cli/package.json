@@ -1,6 +1,7 @@
 {
     "name": "kamox",
     "version": "0.1.0",
+    "description": "AI-powered development server for Chrome extensions",
     "bin": {
         "kamox": "./dist/index.js"
     },
@@ -25,5 +26,13 @@
     ],
     "publishConfig": {
         "access": "public"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/iwabuchi404/kamox.git"
+    },
+    "engines": {
+        "node": ">=18.0.0"
     }
 }

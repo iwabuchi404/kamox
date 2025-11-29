@@ -20,5 +20,9 @@
     "prettier": "^3.1.0"
   },
   "author": "KamoX Team",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iwabuchi404/kamox.git"
+  }
 }

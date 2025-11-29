@@ -1,6 +1,7 @@
 {
     "name": "@kamox/plugin-chrome",
     "version": "0.1.0",
+    "description": "Chrome extension adapter for KamoX",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "scripts": {
@@ -17,5 +18,13 @@
     ],
     "publishConfig": {
         "access": "public"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/iwabuchi404/kamox.git"
+    },
+    "engines": {
+        "node": ">=18.0.0"
     }
 }
