@@ -1,14 +1,27 @@
 {
     "name": "@kamox/plugin-chrome",
     "version": "0.1.0",
-    "description": "Chrome extension adapter for KamoX",
+    "description": "Chrome extension adapter for KamoX using Playwright - Automated testing and live preview for browser extensions",
+    "keywords": [
+        "chrome-extension",
+        "browser-extension",
+        "web-extension",
+        "playwright",
+        "testing",
+        "automation",
+        "manifest-v3",
+        "extension-testing",
+        "e2e-testing",
+        "kamox",
+        "development-tools"
+    ],
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "scripts": {
         "build": "tsc"
     },
     "dependencies": {
-        "@kamox/core": "*",
+        "@kamox/core": "^0.1.0",
         "playwright": "^1.40.0"
     },
     "files": [
@@ -19,6 +32,10 @@
     "publishConfig": {
         "access": "public"
     },
+    "homepage": "https://github.com/iwabuchi404/kamox#readme",
+    "bugs": {
+        "url": "https://github.com/iwabuchi404/kamox/issues"
+    },
     "license": "MIT",
     "repository": {
         "type": "git",
@@ -26,5 +43,6 @@
     },
     "engines": {
         "node": ">=18.0.0"
-    }
+    },
+    "author": "KamoX Team"
 }

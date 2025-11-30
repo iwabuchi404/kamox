@@ -1,19 +1,24 @@
-# ![KamoX Logo](images/logo_20251127.png) KamoX - Web Extension Dev Server
+# ![KamoX Logo](https://raw.githubusercontent.com/iwabuchi404/kamox/main/images/logo_20251127.png) KamoX - Web Extension Dev Server
+
+[![npm version](https://badge.fury.io/js/kamox.svg)](https://badge.fury.io/js/kamox)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **English** | [日本語](README_ja.md)
 
-A plugin-based HTTP API server that allows AI coding agents to live-preview and develop Chrome Extensions, Electron apps, and VSCode extensions.
+**KamoX** is a plugin-based HTTP API server designed for **AI Coding Agents** (like Windsurf, Cursor, Devin) to live-preview, debug, and develop **Chrome Extensions** (Manifest V3), Electron apps, and VSCode extensions.
+
+It bridges the gap between AI agents and local development environments by providing a structured API for building, verifying UI, and retrieving logs.
 
 ## Features
 
-- **AI-Friendly**: Build, verify UI, and retrieve logs via HTTP API.
-- **Plugin Architecture**: Supports Chrome Extensions, Electron, and VSCode extensions (currently Chrome only).
-- **Automation**: Automates screenshots, DOM info retrieval, and log collection.
-- **Robust Error Detection**: Automatically detects extension load errors and runtime errors, notifying via logs and dashboard.
-- **Development Dashboard**: Real-time verification of server status, errors, and logs in the browser.
+- **🤖 AI-First Design**: Built for AI agents to interact via HTTP API (build, verify, log).
+- **🔌 Plugin Architecture**: Modular support for Chrome Extensions, Electron, and VSCode extensions (currently Chrome only).
+- **⚡ Automated Verification**: Automates screenshots, DOM inspection, and console log collection using **Playwright**.
+- **🛡️ Robust Error Detection**: Automatically detects extension load errors, runtime errors, and CSP violations.
+- **📊 Live Dashboard**: Real-time browser-based dashboard for monitoring server status and logs.
 
 > [!TIP]
-> **For AI Agents**: Please refer to [docs/ai-usage.md](docs/ai-usage.md) for detailed API usage guide.
+> **For AI Agents**: Please refer to [docs/ai-usage.md](https://github.com/iwabuchi404/kamox/blob/main/docs/ai-usage.md) for the detailed API usage guide.
 
 ## Installation
 
