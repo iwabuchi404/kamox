@@ -99,7 +99,33 @@ KamoXサーバー起動後、コンソールに表示されるURL（例: `http:/
 | POST | `/check-ui` | UI表示確認（Popup等） |
 | POST | `/check-script` | Content Script確認 |
 | GET | `/logs` | ログ取得 |
+| POST | `/playwright/mouse` | マウス操作 (click, move, drag) |
+| POST | `/playwright/keyboard` | キーボード操作 (type, press) |
+| POST | `/playwright/element` | 要素操作 (click, fill, check) |
+| POST | `/playwright/wait` | 待機操作 (selector, timeout) |
+| POST | `/playwright/reload` | ページリロード |
 | GET | `/` | 開発ダッシュボード |
+
+### インタラクティブテスト (Playwright API)
+
+KamoXは、AIエージェントがPlaywright互換のAPIを使用して拡張機能を操作することを可能にします。
+
+**例: ボタンをクリック**
+```bash
+curl -X POST http://localhost:3000/playwright/element \
+  -H "Content-Type: application/json" \
+  -d '{"selector": "#submit-btn", "action": "click"}'
+```
+
+**例: テキスト入力**
+```bash
+curl -X POST http://localhost:3000/playwright/keyboard \
+  -H "Content-Type: application/json" \
+  -d '{"action": "type", "text": "Hello World"}'
+```
+
+詳細は [docs/ai-usage.md](docs/ai-usage.md) を参照してください。
+
 
 ## トラブルシューティング
 

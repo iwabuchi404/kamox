@@ -99,7 +99,33 @@ After starting the KamoX server, access the URL shown in the console (e.g., `htt
 | POST | `/check-ui` | Verify UI (Popup, etc.) |
 | POST | `/check-script` | Verify Content Script |
 | GET | `/logs` | Get logs |
+| POST | `/playwright/mouse` | Mouse Action (click, move, drag) |
+| POST | `/playwright/keyboard` | Keyboard Action (type, press) |
+| POST | `/playwright/element` | Element Action (click, fill, check) |
+| POST | `/playwright/wait` | Wait Action (selector, timeout) |
+| POST | `/playwright/reload` | Reload Page |
 | GET | `/` | Development Dashboard |
+
+### Interactive Testing (Playwright API)
+
+KamoX allows AI agents to interact with the extension using Playwright-compatible APIs.
+
+**Example: Click a button**
+```bash
+curl -X POST http://localhost:3000/playwright/element \
+  -H "Content-Type: application/json" \
+  -d '{"selector": "#submit-btn", "action": "click"}'
+```
+
+**Example: Type text**
+```bash
+curl -X POST http://localhost:3000/playwright/keyboard \
+  -H "Content-Type: application/json" \
+  -d '{"action": "type", "text": "Hello World"}'
+```
+
+For more details, see [docs/ai-usage.md](docs/ai-usage.md).
+
 
 ## Troubleshooting
 

@@ -75,3 +75,46 @@ export interface ServerStatus {
   };
   projectName?: string;
 }
+
+// Playwright API types
+export interface PlaywrightMouseRequest {
+  action: 'click' | 'move' | 'down' | 'up' | 'drag';
+  x: number;
+  y: number;
+  button?: 'left' | 'right' | 'middle';
+  clickCount?: number;
+  toX?: number;
+  toY?: number;
+}
+
+export interface PlaywrightKeyboardRequest {
+  action: 'type' | 'press';
+  text?: string;
+  key?: string;
+}
+
+export interface PlaywrightElementRequest {
+  selector: string;
+  action: 'click' | 'fill' | 'select' | 'check' | 'uncheck';
+  value?: string;
+  timeout?: number;
+}
+
+export interface PlaywrightWaitRequest {
+  type: 'selector' | 'timeout' | 'networkIdle';
+  selector?: string;
+  duration?: number;
+  timeout?: number;
+}
+
+export interface PlaywrightReloadRequest {
+  waitUntil?: 'load' | 'domcontentloaded' | 'networkidle';
+  timeout?: number;
+}
+
+export interface PlaywrightActionResult {
+  success: boolean;
+  data?: any;
+  error?: string;
+}
+

@@ -122,6 +122,65 @@ Retrieve system logs, build logs, and runtime logs from the browser.
 }
 ```
 
+### 6. Playwright API (Interactive Testing)
+
+Use these endpoints to perform interactive actions like clicking, typing, and waiting.
+
+#### Mouse Action
+**POST** `/playwright/mouse`
+
+```json
+{
+  "action": "click", // click, move, down, up, drag
+  "x": 100,
+  "y": 200,
+  "button": "left", // optional
+  "clickCount": 1   // optional
+}
+```
+
+#### Keyboard Action
+**POST** `/playwright/keyboard`
+
+```json
+{
+  "action": "type", // type, press
+  "text": "Hello",  // for type
+  "key": "Enter"    // for press
+}
+```
+
+#### Element Action
+**POST** `/playwright/element`
+
+```json
+{
+  "selector": "#submit-btn",
+  "action": "click", // click, fill, select, check, uncheck
+  "value": "text"    // for fill/select
+}
+```
+
+#### Wait Action
+**POST** `/playwright/wait`
+
+```json
+{
+  "type": "selector", // selector, timeout, networkIdle
+  "selector": "#result",
+  "timeout": 5000
+}
+```
+
+#### Reload Page
+**POST** `/playwright/reload`
+
+```json
+{
+  "waitUntil": "load" // load, domcontentloaded, networkidle
+}
+```
+
 ## Recommended Workflow for AI Agents
 
 1.  **Modify Code**: Edit the extension source files.
@@ -130,7 +189,11 @@ Retrieve system logs, build logs, and runtime logs from the browser.
 3.  **Verify**:
     *   For Popups: Call `POST /check-ui`. Check `errors` and view `screenshot`.
     *   For Content Scripts: Call `POST /check-script`. Check `injected` status and `logs`.
-4.  **Debug**: If issues persist, call `GET /logs` to see detailed browser console output.
+4.  **Interactive Test**:
+    *   Use `/playwright/element` to click buttons or fill forms.
+    *   Use `/playwright/wait` to wait for results.
+    *   Call `/check-ui` again to verify the state after interaction.
+5.  **Debug**: If issues persist, call `GET /logs` to see detailed browser console output.
 
 ## Error Handling
 

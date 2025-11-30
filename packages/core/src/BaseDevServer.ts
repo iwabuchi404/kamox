@@ -8,7 +8,13 @@ import {
   ScriptCheckResult, 
   LogCollection,
   ServerStatus,
-  UserAction
+  UserAction,
+  PlaywrightMouseRequest,
+  PlaywrightKeyboardRequest,
+  PlaywrightElementRequest,
+  PlaywrightWaitRequest,
+  PlaywrightReloadRequest,
+  PlaywrightActionResult
 } from './types/common.js';
 import { IDevServer } from './types/plugin.js';
 import { Logger } from './utils/logger.js';
@@ -49,6 +55,13 @@ export abstract class BaseDevServer implements IDevServer {
   abstract reload(): Promise<void>;
   abstract checkUI(options?: { url?: string; actions?: UserAction[] }): Promise<UICheckResult>;
   abstract checkScript(url?: string): Promise<ScriptCheckResult>;
+  
+  // Playwright API抽象メソッド
+  abstract performMouseAction(request: PlaywrightMouseRequest): Promise<PlaywrightActionResult>;
+  abstract performKeyboardAction(request: PlaywrightKeyboardRequest): Promise<PlaywrightActionResult>;
+  abstract performElementAction(request: PlaywrightElementRequest): Promise<PlaywrightActionResult>;
+  abstract performWait(request: PlaywrightWaitRequest): Promise<PlaywrightActionResult>;
+  abstract performReload(request: PlaywrightReloadRequest): Promise<PlaywrightActionResult>;
   
   // 共通メソッド
   async rebuild(): Promise<RebuildResult> {

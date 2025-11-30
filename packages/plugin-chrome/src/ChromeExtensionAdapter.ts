@@ -1,6 +1,16 @@
 import { validateUrl } from '@kamox/core/dist/utils/security.js';
 import { BaseDevServer } from '@kamox/core/dist/BaseDevServer.js';
-import { UICheckResult, ScriptCheckResult, UserAction } from '@kamox/core/dist/types/common.js';
+import { 
+  UICheckResult, 
+  ScriptCheckResult, 
+  UserAction,
+  PlaywrightMouseRequest,
+  PlaywrightKeyboardRequest,
+  PlaywrightElementRequest,
+  PlaywrightWaitRequest,
+  PlaywrightReloadRequest,
+  PlaywrightActionResult
+} from '@kamox/core/dist/types/common.js';
 import { chromium, BrowserContext, Page } from 'playwright';
 import path from 'path';
 import os from 'os';
@@ -498,4 +508,310 @@ export class ChromeExtensionAdapter extends BaseDevServer {
   protected getLastBuildTime(): string | null {
     return this.lastBuildTime;
   }
+
+  // Playwright API implementations
+  async performMouseAction(request: PlaywrightMouseRequest): Promise<PlaywrightActionResult> {
+    if (!this.context) {
+      return {
+        success: false,
+        error: 'Browser context not initialized'
+      };
+    }
+
+    try {
+      const pages = this.context.pages();
+      if (pages.length === 0) {
+        return {
+          success: false,
+          error: 'No active pages found'
+        };
+      }
+
+      const page = pages[0];
+      const button = request.button || 'left';
+      const clickCount = request.clickCount || 1;
+
+      switch (request.action) {
+        case 'click':
+          await page.mouse.click(request.x, request.y, { button, clickCount });
+          break;
+        case 'move':
+          await page.mouse.move(request.x, request.y);
+          break;
+        case 'down':
+          await page.mouse.down({ button });
+          break;
+        case 'up':
+          await page.mouse.up({ button });
+          break;
+        case 'drag':
+          if (request.toX === undefined || request.toY === undefined) {
+            return {
+              success: false,
+              error: 'toX and toY are required for drag action'
+            };
+          }
+          await page.mouse.move(request.x, request.y);
+          await page.mouse.down({ button });
+          await page.mouse.move(request.toX, request.toY);
+          await page.mouse.up({ button });
+          break;
+        default:
+          return {
+            success: false,
+            error: `Unknown mouse action: ${request.action}`
+          };
+      }
+
+      return {
+        success: true,
+        data: {
+          action: request.action,
+          position: { x: request.x, y: request.y }
+        }
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  async performKeyboardAction(request: PlaywrightKeyboardRequest): Promise<PlaywrightActionResult> {
+    if (!this.context) {
+      return {
+        success: false,
+        error: 'Browser context not initialized'
+      };
+    }
+
+    try {
+      const pages = this.context.pages();
+      if (pages.length === 0) {
+        return {
+          success: false,
+          error: 'No active pages found'
+        };
+      }
+
+      const page = pages[0];
+
+      switch (request.action) {
+        case 'type':
+          if (!request.text) {
+            return {
+              success: false,
+              error: 'text is required for type action'
+            };
+          }
+          await page.keyboard.type(request.text);
+          break;
+        case 'press':
+          if (!request.key) {
+            return {
+              success: false,
+              error: 'key is required for press action'
+            };
+          }
+          await page.keyboard.press(request.key);
+          break;
+        default:
+          return {
+            success: false,
+            error: `Unknown keyboard action: ${request.action}`
+          };
+      }
+
+      return {
+        success: true,
+        data: {
+          action: request.action,
+          text: request.text,
+          key: request.key
+        }
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  async performElementAction(request: PlaywrightElementRequest): Promise<PlaywrightActionResult> {
+    if (!this.context) {
+      return {
+        success: false,
+        error: 'Browser context not initialized'
+      };
+    }
+
+    try {
+      const pages = this.context.pages();
+      if (pages.length === 0) {
+        return {
+          success: false,
+          error: 'No active pages found'
+        };
+      }
+
+      const page = pages[0];
+      const timeout = request.timeout || 5000;
+      const element = page.locator(request.selector);
+
+      switch (request.action) {
+        case 'click':
+          await element.click({ timeout });
+          break;
+        case 'fill':
+          if (request.value === undefined) {
+            return {
+              success: false,
+              error: 'value is required for fill action'
+            };
+          }
+          await element.fill(request.value, { timeout });
+          break;
+        case 'select':
+          if (request.value === undefined) {
+            return {
+              success: false,
+              error: 'value is required for select action'
+            };
+          }
+          await element.selectOption(request.value, { timeout });
+          break;
+        case 'check':
+          await element.check({ timeout });
+          break;
+        case 'uncheck':
+          await element.uncheck({ timeout });
+          break;
+        default:
+          return {
+            success: false,
+            error: `Unknown element action: ${request.action}`
+          };
+      }
+
+      return {
+        success: true,
+        data: {
+          selector: request.selector,
+          action: request.action
+        }
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  async performWait(request: PlaywrightWaitRequest): Promise<PlaywrightActionResult> {
+    if (!this.context) {
+      return {
+        success: false,
+        error: 'Browser context not initialized'
+      };
+    }
+
+    try {
+      const pages = this.context.pages();
+      if (pages.length === 0) {
+        return {
+          success: false,
+          error: 'No active pages found'
+        };
+      }
+
+      const page = pages[0];
+      const startTime = Date.now();
+
+      switch (request.type) {
+        case 'selector':
+          if (!request.selector) {
+            return {
+              success: false,
+              error: 'selector is required for selector wait type'
+            };
+          }
+          await page.waitForSelector(request.selector, { timeout: request.timeout || 5000 });
+          break;
+        case 'timeout':
+          if (request.duration === undefined) {
+            return {
+              success: false,
+              error: 'duration is required for timeout wait type'
+            };
+          }
+          await page.waitForTimeout(request.duration);
+          break;
+        case 'networkIdle':
+          await page.waitForLoadState('networkidle', { timeout: request.timeout || 30000 });
+          break;
+        default:
+          return {
+            success: false,
+            error: `Unknown wait type: ${request.type}`
+          };
+      }
+
+      const waited = Date.now() - startTime;
+
+      return {
+        success: true,
+        data: {
+          type: request.type,
+          waited
+        }
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  async performReload(request: PlaywrightReloadRequest): Promise<PlaywrightActionResult> {
+    if (!this.context) {
+      return {
+        success: false,
+        error: 'Browser context not initialized'
+      };
+    }
+
+    try {
+      const pages = this.context.pages();
+      if (pages.length === 0) {
+        return {
+          success: false,
+          error: 'No active pages found'
+        };
+      }
+
+      const page = pages[0];
+      const waitUntil = request.waitUntil || 'load';
+      const timeout = request.timeout || 30000;
+
+      await page.reload({ waitUntil, timeout });
+
+      return {
+        success: true,
+        data: {
+          reloaded: true,
+          waitUntil
+        }
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
 }
+

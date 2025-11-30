@@ -96,6 +96,108 @@ export class DevServerAPI {
       });
     });
 
+    // Playwright API endpoints
+    this.app.post('/playwright/mouse', async (req: Request, res: Response) => {
+      try {
+        const result = await this.adapter.performMouseAction(req.body);
+        res.json({
+          success: result.success,
+          timestamp: new Date().toISOString(),
+          environment: this.adapter.getEnvironment(),
+          data: result.data,
+          error: result.error
+        });
+      } catch (error: any) {
+        res.status(500).json({
+          success: false,
+          timestamp: new Date().toISOString(),
+          environment: this.adapter.getEnvironment(),
+          error: error.message
+        });
+      }
+    });
+
+    this.app.post('/playwright/keyboard', async (req: Request, res: Response) => {
+      try {
+        const result = await this.adapter.performKeyboardAction(req.body);
+        res.json({
+          success: result.success,
+          timestamp: new Date().toISOString(),
+          environment: this.adapter.getEnvironment(),
+          data: result.data,
+          error: result.error
+        });
+      } catch (error: any) {
+        res.status(500).json({
+          success: false,
+          timestamp: new Date().toISOString(),
+          environment: this.adapter.getEnvironment(),
+          error: error.message
+        });
+      }
+    });
+
+    this.app.post('/playwright/element', async (req: Request, res: Response) => {
+      try {
+        const result = await this.adapter.performElementAction(req.body);
+        res.json({
+          success: result.success,
+          timestamp: new Date().toISOString(),
+          environment: this.adapter.getEnvironment(),
+          data: result.data,
+          error: result.error
+        });
+      } catch (error: any) {
+        res.status(500).json({
+          success: false,
+          timestamp: new Date().toISOString(),
+          environment: this.adapter.getEnvironment(),
+          error: error.message
+        });
+      }
+    });
+
+    this.app.post('/playwright/wait', async (req: Request, res: Response) => {
+      try {
+        const result = await this.adapter.performWait(req.body);
+        res.json({
+          success: result.success,
+          timestamp: new Date().toISOString(),
+          environment: this.adapter.getEnvironment(),
+          data: result.data,
+          error: result.error
+        });
+      } catch (error: any) {
+        res.status(500).json({
+          success: false,
+          timestamp: new Date().toISOString(),
+          environment: this.adapter.getEnvironment(),
+          error: error.message
+        });
+      }
+    });
+
+    this.app.post('/playwright/reload', async (req: Request, res: Response) => {
+      try {
+        const result = await this.adapter.performReload(req.body);
+        res.json({
+          success: result.success,
+          timestamp: new Date().toISOString(),
+          environment: this.adapter.getEnvironment(),
+          data: result.data,
+          error: result.error
+        });
+      } catch (error: any) {
+        res.status(500).json({
+          success: false,
+          timestamp: new Date().toISOString(),
+          environment: this.adapter.getEnvironment(),
+          error: error.message
+        });
+      }
+    });
+
+
     // 環境固有エンドポイントの動的登録
     if ('checkPopup' in this.adapter) {
       this.app.post('/check-popup', async (req: Request, res: Response) => {
