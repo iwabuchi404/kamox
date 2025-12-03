@@ -1,6 +1,6 @@
 {
   "name": "kamox-monorepo",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
   "description": "Web Extension Dev Server",
   "workspaces": [
@@ -24,5 +24,8 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/iwabuchi404/kamox.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

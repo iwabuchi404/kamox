@@ -230,6 +230,62 @@ export class DevServerAPI {
       }
     });
 
+    // スクリーンショット配信
+    this.app.get('/screenshots/:filename', (req: Request, res: Response) => {
+      const filename = req.params.filename;
+      // セキュリティ対策: ファイル名のみを許可
+      if (!/^[a-zA-Z0-9_.-]+\.png$/.test(filename)) {
+        res.status(400).send('Invalid filename');
+        return;
+      }
+
+      // ワークディレクトリの特定（adapterの実装に依存するが、ここでは簡易的に推測）
+      // Note: 本来はadapterからパスをもらうべきだが、BaseDevServerにはそのIFがないため
+      // 設定ファイル等から推測するか、adapterをキャストして取得する
+      let workDir = '';
+      if ('state' in this.adapter) {
+         const state = (this.adapter as any).state;
+         const rootDir = state.config.workDir ? path.resolve(state.config.workDir) : path.resolve(state.config.projectPath);
+         workDir = path.join(rootDir, '.kamox');
+      }
+
+      if (!workDir) {
+        res.status(500).send('Cannot determine work directory');
+        return;
+      }
+
+      const screenshotPath = path.join(workDir, 'screenshots', filename);
+      if (fs.existsSync(screenshotPath)) {
+        res.sendFile(screenshotPath);
+      } else {
+        res.status(404).send('Screenshot not found');
+      }
+    });
+
+    // Open Popup API
+    this.app.post('/playwright/open-popup', async (req: Request, res: Response) => {
+      try {
+        if ('openPopup' in this.adapter) {
+          const result = await (this.adapter as any).openPopup();
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: result
+          });
+        } else {
+          throw new Error('openPopup not supported in this environment');
+        }
+      } catch (error: any) {
+        res.status(500).json({
+          success: false,
+          timestamp: new Date().toISOString(),
+          environment: this.adapter.getEnvironment(),
+          error: error.message
+        });
+      }
+    });
+
     // ダッシュボード（簡易版）
     this.app.get('/', async (req: Request, res: Response) => {
       const status = this.adapter.getStatus();
@@ -280,6 +336,18 @@ export class DevServerAPI {
     .header-title { display: flex; align-items: center; }
     .header-title h1 { margin: 0; }
     .project-name { font-size: 0.9em; color: #636e72; margin-left: 10px; font-weight: normal; }
+    
+    .actions { display: flex; gap: 10px; margin: 0 20px; }
+    .btn-secondary { background: #636e72; }
+    .btn-secondary:hover { background: #2d3436; }
+    
+    /* Modal */
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+    .modal-content { background-color: #fefefe; margin: 5% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 800px; border-radius: 8px; position: relative; }
+    .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+    .close:hover, .close:focus { color: black; text-decoration: none; cursor: pointer; }
+    #checkUiContent img { max-width: 100%; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 10px; }
+    #checkUiContent pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow-x: auto; }
   </style>
 </head>
 <body>
@@ -291,6 +359,12 @@ export class DevServerAPI {
         ${status.projectName ? `<div class="project-name">${status.projectName}</div>` : ''}
       </div>
     </div>
+    
+    <div class="actions">
+      <button onclick="openPopup()" title="Open popup in a new tab">Open Popup</button>
+      <button onclick="checkUI()" class="btn-secondary" title="Check UI and show screenshot">Check UI</button>
+    </div>
+
     <div>
       <span class="status-badge ${allErrors.length > 0 ? 'status-error' : 'status-ok'}">
         ${allErrors.length > 0 ? 'Has Errors' : 'System Healthy'}
@@ -299,53 +373,53 @@ export class DevServerAPI {
   </div>
 
   ${allErrors.length > 0 ? `
-    <div class="error-alert">
-      <div class="error-title">⚠️ ${allErrors.length} Errors Detected</div>
-      <ul style="margin: 0; padding-left: 20px;">
-        ${allErrors.map(e => `<li>[${e.source}] ${e.content}</li>`).join('')}
-      </ul>
-    </div>
+  <div class="error-alert">
+    <div class="error-title">⚠️ Errors Detected</div>
+    ${allErrors.slice(0, 3).map((e: any) => `<div>${e.content}</div>`).join('')}
+    ${allErrors.length > 3 ? `<div style="margin-top:5px; font-size:0.9em;">...and ${allErrors.length - 3} more errors</div>` : ''}
+  </div>
   ` : ''}
 
-  <div class="card">
-    <h2>Server Status</h2>
-    <div class="info-grid">
+  <div class="info-grid">
+    <div class="card">
+      <h2>Server Status</h2>
       <div class="info-item">
         <span class="label">Environment</span>
         <span class="value">${environment}</span>
       </div>
       <div class="info-item">
-        <span class="label">Build Count</span>
-        <span class="value">${status.buildCount}</span>
-      </div>
-      <div class="info-item">
-        <span class="label">Last Build</span>
-        <span class="value">${status.lastBuildTime ? new Date(status.lastBuildTime).toLocaleTimeString() : '-'}</span>
-      </div>
-      <div class="info-item">
         <span class="label">Status</span>
-        <span class="value">${status.isRebuilding ? 'Rebuilding...' : 'Running'}</span>
+        <span class="value" style="color: #00b894">● Running</span>
+      </div>
+      <div style="margin-top: 20px;">
+        <button onclick="rebuild()" id="rebuildBtn">Rebuild & Reload</button>
       </div>
     </div>
-    <div style="margin-top: 20px;">
-      <button id="rebuildBtn" onclick="triggerRebuild()">🔄 Rebuild & Reload</button>
+
+    <div class="card">
+      <h2>Recent Logs</h2>
+      <div class="log-box" id="logBox">
+        ${recentLogs.map((log: any) => `
+          <div class="log-entry">
+            <span class="log-time">[${new Date(log.timestamp).toLocaleTimeString()}]</span>
+            <span class="log-${log.type}">${log.content}</span>
+          </div>
+        `).join('')}
+      </div>
     </div>
   </div>
 
-  <div class="card">
-    <h2>Recent System Logs</h2>
-    <div class="log-box">
-      ${recentLogs.map(log => `
-        <div class="log-entry log-${log.type}">
-          <span class="log-time">${new Date(log.timestamp).toLocaleTimeString()}</span>
-          <span class="log-content">${log.content}</span>
-        </div>
-      `).join('')}
+  <!-- Modal for Check UI Result -->
+  <div id="checkUiModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeModal()">&times;</span>
+      <h2>UI Check Result</h2>
+      <div id="checkUiContent">Loading...</div>
     </div>
   </div>
 
   <script>
-    async function triggerRebuild() {
+    async function rebuild() {
       const btn = document.getElementById('rebuildBtn');
       btn.disabled = true;
       btn.textContent = 'Rebuilding...';
@@ -357,32 +431,97 @@ export class DevServerAPI {
           location.reload();
         } else {
           alert('Build failed! Check logs.');
-          btn.textContent = 'Rebuild Failed';
+          btn.disabled = false;
+          btn.textContent = 'Rebuild & Reload';
         }
       } catch (e) {
         alert('Error: ' + e.message);
-        btn.textContent = 'Error';
-      } finally {
-        setTimeout(() => {
-          btn.disabled = false;
-          if (btn.textContent !== 'Rebuild & Reload') {
-             btn.textContent = '🔄 Rebuild & Reload';
+        btn.disabled = false;
+        btn.textContent = 'Rebuild & Reload';
+      }
+    }
+
+    async function openPopup() {
+      try {
+        const res = await fetch('/playwright/open-popup', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          // alert('Popup opened!');
+        } else {
+          alert('Failed: ' + data.error);
+        }
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+    }
+  
+    async function checkUI() {
+      document.getElementById('checkUiModal').style.display = 'block';
+      document.getElementById('checkUiContent').innerHTML = 'Checking UI... (Taking screenshot)';
+      
+      try {
+        const res = await fetch('/check-ui', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({}) });
+        const json = await res.json();
+        
+        if (json.success) {
+          // パスからファイル名を抽出
+          const filename = json.data.screenshot.split(/[\\\\/]/).pop();
+          const imgUrl = '/screenshots/' + filename;
+          
+          let content = '<img src="' + imgUrl + '">';
+          
+          if (json.data.errors && json.data.errors.length > 0) {
+             content += '<h3 style="color:#d63031">Errors:</h3><pre>' + JSON.stringify(json.data.errors, null, 2) + '</pre>';
+          } else {
+             content += '<div style="color:#00b894; font-weight:bold; margin-top:10px;">✓ No errors detected</div>';
           }
-        }, 2000);
+          
+          document.getElementById('checkUiContent').innerHTML = content;
+        } else {
+          document.getElementById('checkUiContent').innerText = 'Error: ' + json.error;
+        }
+      } catch (e) {
+        document.getElementById('checkUiContent').innerText = 'Error: ' + e.message;
       }
     }
     
-    // Auto refresh status every 5 seconds
-    setInterval(() => {
-      if (!document.hidden) {
-        // location.reload(); // シンプルにするため自動リロードは一旦なし（ログが流れるので）
+    function closeModal() {
+      document.getElementById('checkUiModal').style.display = 'none';
+    }
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+      const modal = document.getElementById('checkUiModal');
+      if (event.target == modal) {
+        modal.style.display = "none";
+      }
+    }
+
+    // Auto-refresh logs every 5 seconds
+    setInterval(async () => {
+      try {
+        const res = await fetch('/logs');
+        const data = await res.json();
+        if (data.success) {
+          const logs = data.data.runtime.slice(-100).reverse();
+          const logBox = document.getElementById('logBox');
+          // Only update if content changed (simple check)
+          // For now just replace
+          logBox.innerHTML = logs.map(log => \`
+            <div class="log-entry">
+              <span class="log-time">[\${new Date(log.timestamp).toLocaleTimeString()}]</span>
+              <span class="log-\${log.type}">\${log.content}</span>
+            </div>
+          \`).join('');
+        }
+      } catch (e) {
+        console.error('Failed to fetch logs', e);
       }
     }, 5000);
   </script>
 </body>
 </html>
       `;
-      
       res.send(html);
     });
   }

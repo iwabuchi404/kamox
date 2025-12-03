@@ -440,6 +440,20 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     };
   }
 
+  async openPopup(): Promise<{ success: boolean; message: string }> {
+    if (!this.context || !this.extensionId) {
+      throw new Error('Extension not loaded');
+    }
+
+    const popupUrl = `chrome-extension://${this.extensionId}/popup.html`;
+    this.logger.log('info', `Opening popup: ${popupUrl}`, 'system');
+    
+    const page = await this.context.newPage();
+    await page.goto(popupUrl);
+    
+    return { success: true, message: 'Popup opened' };
+  }
+
   async checkScript(url: string = 'https://example.com'): Promise<ScriptCheckResult> {
     if (!this.context) {
       throw new Error('Chrome environment not running');

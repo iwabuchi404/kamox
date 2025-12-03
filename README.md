@@ -77,23 +77,6 @@ Creating a `kamox.config.json` in your project root saves you from specifying op
   "buildCommand": "npm run build",
   "port": 3000
 }
-```
-
-Use `kamox detect` command to see recommended settings based on your project structure.
-
-## Dashboard
-
-After starting the KamoX server, access the URL shown in the console (e.g., `http://localhost:3000/`) to see the dashboard with the following features:
-
-- **Status Check**: Check server status and environment info.
-- **Error Notification**: Instant check for extension load errors and runtime errors.
-- **Log Viewer**: View recent system logs.
-- **Rebuild**: Rebuild and reload the extension with one click.
-
-## API
-
-| Method | Path | Description |
-|--------|------|-------------|
 | GET | `/status` | Check server status |
 | POST | `/rebuild` | Rebuild project |
 | POST | `/check-ui` | Verify UI (Popup, etc.) |

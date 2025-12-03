@@ -5,19 +5,6 @@ This document describes how AI agents can effectively use the KamoX Dev Server t
 ## Overview
 
 KamoX provides a RESTful API designed for programmatic interaction. As an AI agent, you can use these endpoints to:
-1.  **Check Server Status**: Verify the environment and server health.
-2.  **Trigger Rebuilds**: Apply code changes and reload the extension.
-3.  **Verify UI**: Take screenshots and inspect the DOM of extension pages (Popup, Options, etc.).
-4.  **Verify Scripts**: Check if Content Scripts are correctly injected and functioning.
-5.  **Debug**: Retrieve logs and error messages.
-
-## API Endpoints
-
-Base URL: `http://localhost:3000`
-
-### 1. Check Status
-**GET** `/status`
-
 Use this to confirm the server is running and check the current environment.
 
 **Response:**
