@@ -8,20 +8,6 @@
 **KamoX** is a plugin-based HTTP API server designed for **AI Coding Agents** (like Windsurf, Cursor, Devin) to live-preview, debug, and develop **Chrome Extensions** (Manifest V3), Electron apps, and VSCode extensions.
 
 It bridges the gap between AI agents and local development environments by providing a structured API for building, verifying UI, and retrieving logs.
-
-## Features
-
-- **🤖 AI-First Design**: Built for AI agents to interact via HTTP API (build, verify, log).
-- **🔌 Plugin Architecture**: Modular support for Chrome Extensions, Electron, and VSCode extensions (currently Chrome only).
-- **⚡ Automated Verification**: Automates screenshots, DOM inspection, and console log collection using **Playwright**.
-- **🛡️ Robust Error Detection**: Automatically detects extension load errors, runtime errors, and CSP violations.
-- **📊 Live Dashboard**: Real-time browser-based dashboard for monitoring server status and logs.
-
-> [!TIP]
-> **For AI Agents**: Please refer to [docs/ai-usage.md](https://github.com/iwabuchi404/kamox/blob/main/docs/ai-usage.md) for the detailed API usage guide.
-
-## Installation
-
 ```bash
 npm install -g kamox
 ```

@@ -1,6 +1,6 @@
 {
     "name": "kamox",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "description": "AI-powered development server for Chrome extensions, Electron apps, and VSCode extensions with live preview, automated testing, and HTTP API",
     "keywords": [
         "chrome-extension",

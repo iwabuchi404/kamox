@@ -15,7 +15,12 @@ AIエージェントとローカル開発環境のギャップを埋め、ビル
 - **🔌 プラグインアーキテクチャ**: Chrome拡張、Electron、VSCode拡張に対応（現在はChromeのみ）。
 - **⚡ 自動検証**: **Playwright** を使用してスクリーンショット撮影、DOM情報取得、ログ収集を自動化。
 - **🛡️ 堅牢なエラー検出**: 拡張機能のロードエラー、実行時エラー、CSP違反を自動検出し通知。
-- **📊 ライブダッシュボード**: サーバーの状態、エラー、ログをブラウザでリアルタイムに確認可能。
+- 🔄 **ホットリロード**: コード変更時に拡張機能を自動リロード。
+- 🐛 **Service Worker デバッグ**:
+  - CDP経由でバックグラウンドの Service Worker ログを収集。
+  - "Wake Up" ボタンで非アクティブな Service Worker を強制起動。
+- 📸 **スクリーンショット機能**: AI分析用にブラウザの状態をキャプチャ。
+- 📊 **ライブダッシュボード**: サーバーの状態、エラー、ログをブラウザでリアルタイムに確認可能。
 
 > [!TIP]
 > **For AI Agents**: 詳細なAPI利用ガイドは [docs/ai-usage.md](https://github.com/iwabuchi404/kamox/blob/main/docs/ai-usage.md) を参照してください。
@@ -77,6 +82,12 @@ kamox chrome [options]
   "buildCommand": "npm run build",
   "port": 3000
 }
+```
+
+### API エンドポイント
+
+| メソッド | パス | 説明 |
+|---|---|---|
 | POST | `/rebuild` | プロジェクトのリビルド |
 | POST | `/check-ui` | UI表示確認（Popup等） |
 | POST | `/check-script` | Content Script確認 |
@@ -87,6 +98,18 @@ kamox chrome [options]
 | POST | `/playwright/wait` | 待機操作 (selector, timeout) |
 | POST | `/playwright/reload` | ページリロード |
 | GET | `/` | 開発ダッシュボード |
+
+### ダッシュボード機能
+
+ダッシュボード（デフォルト: `http://localhost:3000`）には以下の機能があります:
+
+- **サーバーステータス**: 環境と稼働状況の表示
+- **最近のログ**: ブラウザとサーバーのランタイムログ（**Service Workerのログ**は `[SW]` プレフィックス付きで表示）
+- **アクション**:
+  - `Open Popup`: 新しいタブで拡張機能のポップアップを開く
+  - `Check UI`: ポップアップやページのスクリーンショットを撮る
+  - `Wake Up SW`: 停止している Service Worker を強制的に起動する
+- **エラー報告**: 最近のエラーを目立つように表示
 
 ### インタラクティブテスト (Playwright API)
 

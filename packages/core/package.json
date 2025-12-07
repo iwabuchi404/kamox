@@ -1,6 +1,6 @@
 {
     "name": "@kamox/core",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "description": "Core library for KamoX - Plugin-based development server with HTTP API for browser extensions and desktop apps",
     "keywords": [
         "development-server",

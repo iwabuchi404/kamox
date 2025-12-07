@@ -153,41 +153,6 @@ Use these endpoints to perform interactive actions like clicking, typing, and wa
 
 ```json
 {
-  "type": "selector", // selector, timeout, networkIdle
-  "selector": "#result",
-  "timeout": 5000
-}
-```
-
-#### Reload Page
-**POST** `/playwright/reload`
-
-```json
-{
-  "waitUntil": "load" // load, domcontentloaded, networkidle
-}
-```
-
-## Recommended Workflow for AI Agents
-
-1.  **Modify Code**: Edit the extension source files.
-2.  **Rebuild**: Call `POST /rebuild`.
-    *   If `success: false`, analyze `logs` and fix build errors.
-3.  **Verify**:
-    *   For Popups: Call `POST /check-ui`. Check `errors` and view `screenshot`.
-    *   For Content Scripts: Call `POST /check-script`. Check `injected` status and `logs`.
-4.  **Interactive Test**:
-    *   Use `/playwright/element` to click buttons or fill forms.
-    *   Use `/playwright/wait` to wait for results.
-    *   Call `/check-ui` again to verify the state after interaction.
-5.  **Debug**: If issues persist, call `GET /logs` to see detailed browser console output.
-
-## Error Handling
-
-If an API call fails (HTTP 500), the response will contain an `error` field with the message.
-
-```json
-{
   "success": false,
   "error": "Build failed"
 }

@@ -286,6 +286,30 @@ export class DevServerAPI {
       }
     });
 
+    // Wake Up Service Worker API
+    this.app.post('/playwright/wake-up', async (req: Request, res: Response) => {
+      try {
+        if ('wakeUpServiceWorker' in this.adapter) {
+          const result = await (this.adapter as any).wakeUpServiceWorker();
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: result
+          });
+        } else {
+          throw new Error('wakeUpServiceWorker not supported in this environment');
+        }
+      } catch (error: any) {
+        res.status(500).json({
+          success: false,
+          timestamp: new Date().toISOString(),
+          environment: this.adapter.getEnvironment(),
+          error: error.message
+        });
+      }
+    });
+
     // ダッシュボード（簡易版）
     this.app.get('/', async (req: Request, res: Response) => {
       const status = this.adapter.getStatus();
@@ -363,6 +387,7 @@ export class DevServerAPI {
     <div class="actions">
       <button onclick="openPopup()" title="Open popup in a new tab">Open Popup</button>
       <button onclick="checkUI()" class="btn-secondary" title="Check UI and show screenshot">Check UI</button>
+      <button onclick="wakeUpSW()" class="btn-secondary" title="Wake up Service Worker">Wake Up SW</button>
     </div>
 
     <div>
@@ -453,6 +478,29 @@ export class DevServerAPI {
       } catch (e) {
         alert('Error: ' + e.message);
       }
+    }
+
+    async function wakeUpSW() {
+      const btn = event.target;
+      const originalText = btn.innerText;
+      btn.innerText = 'Waking up...';
+      btn.disabled = true;
+      
+      try {
+        const res = await fetch('/playwright/wake-up', { method: 'POST' });
+        const data = await res.json();
+        
+        if (data.success) {
+          alert('Service Worker wake up triggered!');
+        } else {
+          alert('Failed: ' + (data.error || data.data?.message));
+        }
+      } catch (e) {
+        alert('Error: ' + e.message);
+      }
+      
+      btn.innerText = originalText;
+      btn.disabled = false;
     }
   
     async function checkUI() {

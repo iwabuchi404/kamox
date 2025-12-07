@@ -106,8 +106,8 @@ export class ChromeExtensionAdapter extends BaseDevServer {
       ]
     });
 
-    // Service Workerの監視
-    this.context.on('serviceworker', worker => {
+    // Service Workerの監視とCDPアタッチ
+    this.context.on('serviceworker', async worker => {
       this.logger.log('info', `Service Worker detected: ${worker.url()}`, 'system');
       
       if (!this.extensionId) {
@@ -117,15 +117,23 @@ export class ChromeExtensionAdapter extends BaseDevServer {
           this.logger.log('info', `Extension ID detected: ${this.extensionId}`, 'system');
         }
       }
+      
+      // Service WorkerのCDPセッションをアタッチ
+      await this.attachToServiceWorker(worker.url());
     });
 
-    // 既存のService Workerを確認
+    // 既存のService Workerを確認してアタッチ
     const workers = this.context.serviceWorkers();
     if (workers.length > 0) {
       const url = workers[0].url();
       if (url.startsWith('chrome-extension://')) {
         this.extensionId = url.split('/')[2];
         this.logger.log('info', `Extension ID detected (existing): ${this.extensionId}`, 'system');
+      }
+      
+      // 既存のService WorkerにもCDPアタッチ
+      for (const worker of workers) {
+        await this.attachToServiceWorker(worker.url());
       }
     } else {
       // 少し待ってみる
@@ -209,6 +217,85 @@ export class ChromeExtensionAdapter extends BaseDevServer {
           this.logger.log('error', `Failed to check chrome://extensions: ${err.message}`, 'system');
         }
       }
+    }
+  }
+
+  private async attachToServiceWorker(workerUrl: string): Promise<void> {
+    try {
+      this.logger.log('info', `Attempting to attach CDP to Service Worker: ${workerUrl}`, 'system');
+      
+      // Get a page to create a CDP session from
+      const pages = this.context!.pages();
+      const page = pages.length > 0 ? pages[0] : await this.context!.newPage();
+      
+      // Create a CDP session from the page
+      const client = await this.context!.newCDPSession(page);
+      
+      // Get all targets
+      const targets = await client.send('Target.getTargets');
+      
+      // Find the Service Worker target
+      const swTarget = targets.targetInfos.find((t: any) => 
+        t.type === 'service_worker' && t.url === workerUrl
+      );
+      
+      if (!swTarget) {
+        this.logger.log('warn', `Service Worker target not found for: ${workerUrl}`, 'system');
+        return;
+      }
+      
+      this.logger.log('info', `Found Service Worker target: ${swTarget.targetId}`, 'system');
+      
+      // Attach to the Service Worker target
+      const { sessionId } = await client.send('Target.attachToTarget', {
+        targetId: swTarget.targetId,
+        flatten: false  // Must be false to use sendMessageToTarget
+      });
+      
+      this.logger.log('info', `Attached to Service Worker session: ${sessionId}`, 'system');
+      
+      // Enable Runtime domain for this session using sendMessageToTarget
+      await client.send('Target.sendMessageToTarget', {
+        sessionId,
+        message: JSON.stringify({ id: 1, method: 'Runtime.enable' })
+      });
+      
+      // Listen for messages from the target
+      client.on('Target.receivedMessageFromTarget', (params: any) => {
+        if (params.sessionId !== sessionId) return;
+        
+        try {
+          const message = JSON.parse(params.message);
+          
+          // Handle console API calls
+          if (message.method === 'Runtime.consoleAPICalled') {
+            const consoleParams = message.params;
+            const type = consoleParams.type === 'warning' ? 'warn' : consoleParams.type === 'error' ? 'error' : 'info';
+            const args = consoleParams.args?.map((arg: any) => {
+              if (arg.value !== undefined) return String(arg.value);
+              if (arg.description) return arg.description;
+              return JSON.stringify(arg);
+            }).join(' ') || '';
+            
+            this.logger.log(type, `[SW] ${args}`, 'worker');
+          }
+          
+          // Handle exceptions
+          if (message.method === 'Runtime.exceptionThrown') {
+            const exceptionParams = message.params;
+            const desc = exceptionParams.exceptionDetails?.exception?.description || 
+                        exceptionParams.exceptionDetails?.text || 'Unknown error';
+            this.logger.log('error', `[SW Exception] ${desc}`, 'worker');
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      });
+      
+      this.logger.log('info', 'Service Worker log monitoring enabled via CDP', 'system');
+      
+    } catch (e: any) {
+      this.logger.log('warn', `Failed to attach to Service Worker: ${e.message}`, 'system');
     }
   }
 
@@ -452,6 +539,36 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     await page.goto(popupUrl);
     
     return { success: true, message: 'Popup opened' };
+  }
+
+  async wakeUpServiceWorker(): Promise<{ success: boolean; message: string }> {
+    if (!this.context || !this.extensionId) {
+      throw new Error('Extension not loaded');
+    }
+
+    this.logger.log('info', 'Waking up Service Worker...', 'system');
+    
+    const page = await this.context.newPage();
+    try {
+      const popupUrl = `chrome-extension://${this.extensionId}/popup.html`;
+      await page.goto(popupUrl);
+      
+      await page.evaluate(() => {
+        // @ts-ignore
+        if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
+          // @ts-ignore
+          chrome.runtime.sendMessage({ type: 'KAMOX_WAKE_UP' }).catch(() => {});
+        }
+      });
+      
+      await page.waitForTimeout(500);
+      await page.close();
+      
+      return { success: true, message: 'Service Worker wake up triggered' };
+    } catch (e: any) {
+      await page.close();
+      return { success: false, message: `Failed to wake up SW: ${e.message}` };
+    }
   }
 
   async checkScript(url: string = 'https://example.com'): Promise<ScriptCheckResult> {
