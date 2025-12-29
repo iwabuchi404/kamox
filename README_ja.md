@@ -20,6 +20,7 @@ AIエージェントとローカル開発環境のギャップを埋め、ビル
   - CDP経由でバックグラウンドの Service Worker ログを収集。
   - "Wake Up" ボタンで非アクティブな Service Worker を強制起動。
 - 📸 **スクリーンショット機能**: AI分析用にブラウザの状態をキャプチャ。
+- 🎬 **デバッグシナリオ機能**: 特定の状態を再現するための再利用可能なテストシナリオを定義・実行可能。
 - 📊 **ライブダッシュボード**: サーバーの状態、エラー、ログをブラウザでリアルタイムに確認可能。
 
 > [!TIP]
@@ -89,6 +90,7 @@ kamox chrome [options]
 | メソッド | パス | 説明 |
 |---|---|---|
 | POST | `/rebuild` | プロジェクトのリビルド |
+| GET | `/scenarios` | 利用可能なシナリオ一覧の取得 |
 | POST | `/check-ui` | UI表示確認（Popup等） |
 | POST | `/check-script` | Content Script確認 |
 | GET | `/logs` | ログ取得 |
@@ -130,6 +132,24 @@ curl -X POST http://localhost:3000/playwright/keyboard \
 ```
 
 詳細は [docs/ai-usage.md](docs/ai-usage.md) を参照してください。
+
+### シナリオテスト機能
+
+`.kamox/scenarios/*.scenario.js` に再利用可能なテストシナリオを定義することで、特定のタブを開いたりデータをセットアップした状態でUI確認を行えます。
+
+**シナリオ一覧の取得:**
+```bash
+curl http://localhost:3000/scenarios
+```
+
+**シナリオを実行してUI確認:**
+```bash
+curl -X POST http://localhost:3000/check-ui \
+  -H "Content-Type: application/json" \
+  -d '{"scenario": "basic-test"}'
+```
+
+シナリオファイルの構造やAPIの詳細については [**docs/scenarios.md**](docs/scenarios.md) を参照してください。
 
 
 ## トラブルシューティング

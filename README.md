@@ -65,6 +65,7 @@ Creating a `kamox.config.json` in your project root saves you from specifying op
 }
 | GET | `/status` | Check server status |
 | POST | `/rebuild` | Rebuild project |
+| GET | `/scenarios` | List available test scenarios |
 | POST | `/check-ui` | Verify UI (Popup, etc.) |
 | POST | `/check-script` | Verify Content Script |
 | GET | `/logs` | Get logs |
@@ -93,7 +94,23 @@ curl -X POST http://localhost:3000/playwright/keyboard \
   -d '{"action": "type", "text": "Hello World"}'
 ```
 
-For more details, see [docs/ai-usage.md](docs/ai-usage.md).
+### Scenario Testing
+
+You can define reusable test scenarios in `.kamox/scenarios/*.scenario.js` to automate complex setup (e.g., opening specific tabs, setting storage) before verifying the UI.
+
+**List Scenarios:**
+```bash
+curl http://localhost:3000/scenarios
+```
+
+**Run Scenario & Check UI:**
+```bash
+curl -X POST http://localhost:3000/check-ui \
+  -H "Content-Type: application/json" \
+  -d '{"scenario": "basic-test"}'
+```
+
+For full reference on scenario file structure and API, see [**docs/scenarios.md**](docs/scenarios.md).
 
 
 ## Troubleshooting

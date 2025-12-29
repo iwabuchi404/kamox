@@ -157,3 +157,81 @@ Use these endpoints to perform interactive actions like clicking, typing, and wa
   "error": "Build failed"
 }
 ```
+
+### 7. Scenario Testing
+
+KamoX supports "Scenarios" to verify extensions in specific states. This is useful for testing features that require complex setup (e.g., specific tabs open, storage values set).
+
+#### List Available Scenarios
+**GET** `/scenarios`
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "scenarios": [
+      {
+        "name": "basic-test",
+        "description": "Opens example.com",
+        "version": "1.0.0",
+        "requiresPersistentContext": true
+      }
+    ]
+  }
+}
+```
+
+#### Execute Scenario & Check UI
+**POST** `/check-ui`
+
+Execute a scenario before taking the screenshot.
+
+**Body:**
+```json
+{
+  "scenario": "basic-test"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "loaded": true,
+    "screenshot": "...",
+    "scenario": {
+      "name": "basic-test",
+      "logs": [
+        { "timestamp": 1234567890, "type": "info", "content": "Scenario setup started", "source": "scenario" }
+      ],
+      "executionTime": 1234
+    }
+  }
+}
+```
+*Action: Check `data.scenario.logs` to verify the setup process.*
+
+#### Creating a Scenario
+Create a file in `.kamox/scenarios/your-scenario.scenario.js`:
+
+```javascript
+export default {
+  name: "my-scenario",
+  description: "Sets up 3 tabs",
+  
+  async setup(context, logger) {
+    logger.log('info', 'Setting up...', 'scenario');
+    
+    const page = await context.newPage();
+    await page.goto('https://example.com');
+    
+    logger.log('info', 'Setup complete', 'scenario');
+  }
+};
+```
+
+#### Further Reading
+For a comprehensive reference on all available options, API methods, and advanced examples, please refer to the [**Scenario Feature Reference**](../docs/scenarios.md).
+```
