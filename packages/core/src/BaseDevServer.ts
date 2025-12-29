@@ -53,7 +53,7 @@ export abstract class BaseDevServer implements IDevServer {
   // 抽象メソッド（サブクラスで実装）
   abstract launch(): Promise<void>;
   abstract reload(): Promise<void>;
-  abstract checkUI(options?: { url?: string; actions?: UserAction[] }): Promise<UICheckResult>;
+  abstract checkUI(options?: { url?: string; actions?: UserAction[]; scenario?: string }): Promise<UICheckResult>;
   abstract checkScript(url?: string): Promise<ScriptCheckResult>;
   
   // Playwright API抽象メソッド

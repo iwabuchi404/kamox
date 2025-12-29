@@ -48,14 +48,60 @@ export class DevServerAPI {
 
     this.app.post('/check-ui', async (req: Request, res: Response) => {
       try {
-        const { url, actions } = req.body;
-        const result = await this.adapter.checkUI({ url, actions });
+        const { url, actions, scenario } = req.body;
+        const result = await this.adapter.checkUI({ url, actions, scenario });
         res.json({
           success: true,
           timestamp: new Date().toISOString(),
           environment: this.adapter.getEnvironment(),
           data: result
         });
+      } catch (error: any) {
+        res.status(500).json({
+          success: false,
+          timestamp: new Date().toISOString(),
+          environment: this.adapter.getEnvironment(),
+          error: error.message
+        });
+      }
+    });
+
+    // Scenarios API
+    this.app.get('/scenarios', async (req: Request, res: Response) => {
+      try {
+        // ChromeExtensionAdapterからScenarioLoaderを取得
+        if ('getScenarioLoader' in this.adapter) {
+          const scenarioLoader = (this.adapter as any).getScenarioLoader();
+          if (scenarioLoader) {
+            const metadata = await scenarioLoader.listScenariosWithMetadata();
+            res.json({
+              success: true,
+              timestamp: new Date().toISOString(),
+              environment: this.adapter.getEnvironment(),
+              data: {
+                scenarios: metadata
+              }
+            });
+          } else {
+            res.json({
+              success: true,
+              timestamp: new Date().toISOString(),
+              environment: this.adapter.getEnvironment(),
+              data: {
+                scenarios: []
+              }
+            });
+          }
+        } else {
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: {
+              scenarios: []
+            }
+          });
+        }
       } catch (error: any) {
         res.status(500).json({
           success: false,

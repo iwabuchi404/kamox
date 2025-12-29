@@ -40,6 +40,11 @@ export interface UICheckResult {
   performance?: {
     loadTime: number;
   };
+  scenario?: {
+    name: string;
+    logs: LogEntry[];
+    executionTime: number;
+  };
 }
 
 export interface UserAction {
@@ -115,6 +120,26 @@ export interface PlaywrightReloadRequest {
 export interface PlaywrightActionResult {
   success: boolean;
   data?: any;
+  error?: string;
+}
+
+// Scenario types
+export interface ScenarioMetadata {
+  name: string;
+  description?: string;
+  version?: string;
+  requiresPersistentContext?: boolean;
+  requiresServiceWorkerInit?: boolean;
+  warmup?: {
+    enabled?: boolean;
+    parallel?: boolean;
+  };
+}
+
+export interface ScenarioExecutionResult {
+  success: boolean;
+  logs: LogEntry[];
+  executionTime: number;
   error?: string;
 }
 

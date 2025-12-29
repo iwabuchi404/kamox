@@ -9,8 +9,11 @@ import {
   PlaywrightElementRequest,
   PlaywrightWaitRequest,
   PlaywrightReloadRequest,
-  PlaywrightActionResult
+  PlaywrightActionResult,
+  ScenarioExecutionResult,
+  LogEntry
 } from '@kamox/core/dist/types/common.js';
+import { ScenarioLoader, Scenario } from '@kamox/core/dist/utils/scenarioLoader.js';
 import { chromium, BrowserContext, Page } from 'playwright';
 import path from 'path';
 import os from 'os';
@@ -28,16 +31,18 @@ export class ChromeExtensionAdapter extends BaseDevServer {
   private extensionId: string | null = null;
   private buildCount: number = 0;
   private lastBuildTime: string | null = null;
+  private sharedContext: BrowserContext | null = null;
+  private scenarioLoader: ScenarioLoader | null = null;
 
   async launch(): Promise<void> {
     const originalProjectPath = path.resolve(this.state.config.projectPath);
-    const rootDir = this.state.config.workDir ? path.resolve(this.state.config.workDir) : originalProjectPath;
+    // workDirが設定されている場合はそれを使用、そうでない場合はprojectPathの親ディレクトリを推測
+    // シナリオファイルは元のプロジェクトディレクトリに配置されるため
+    const rootDir = this.state.config.workDir 
+      ? path.resolve(this.state.config.workDir) 
+      : path.dirname(originalProjectPath); // distディレクトリの親（プロジェクトルート）
     const workDir = path.join(rootDir, '.kamox');
-    const devDir = workDir; // .kamox root is used as dev extension dir for now, or maybe a subdir?
-    // Actually, devManifest.ts utilities assume devDir is where we copy files to.
-    // Let's use .kamox/extension for the extension files to keep root clean?
-    // But existing code uses devDir as the target.
-    // Let's keep using devDir as the target for now, but ensure it is .kamox.
+    const devDir = path.join(workDir, 'build');
     
     // Ensure .kamox directory exists
     if (!fs.existsSync(workDir)) {
@@ -49,13 +54,11 @@ export class ChromeExtensionAdapter extends BaseDevServer {
       fs.mkdirSync(screenshotsDir, { recursive: true });
     }
     
-    this.logger.log('info', 'Setting up development environment...', 'system');
-    
-    // 既存の.kamoxディレクトリをクリーンアップ
+    // 既存の開発用ビルドディレクトリをクリーンアップ
     cleanupDevDirectory(devDir);
     
-    // プロジェクトファイルを.kamoxにコピー
-    this.logger.log('info', 'Copying project files to .kamox directory...', 'system');
+    // プロジェクトファイルを.kamox/buildにコピー
+    this.logger.log('info', 'Preparing development extension in .kamox/build...', 'system');
     copyProjectFiles(originalProjectPath, devDir);
     
     // 開発用manifest.jsonを生成
@@ -218,6 +221,9 @@ export class ChromeExtensionAdapter extends BaseDevServer {
         }
       }
     }
+    
+    // ScenarioLoaderを初期化（既存のrootDirを使用）
+    this.scenarioLoader = new ScenarioLoader(rootDir, this.logger);
   }
 
   private async attachToServiceWorker(workerUrl: string): Promise<void> {
@@ -310,13 +316,17 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     
     this.buildCount++;
     this.lastBuildTime = new Date().toISOString();
+    
+    // ScenarioLoaderを初期化
+    const rootDir = this.state.config.workDir ? path.resolve(this.state.config.workDir) : path.resolve(this.state.config.projectPath);
+    this.scenarioLoader = new ScenarioLoader(rootDir, this.logger);
   }
 
-  async checkUI(options?: { url?: string; actions?: UserAction[] }): Promise<UICheckResult> {
-    return this.checkPopup(options?.url, options?.actions);
+  async checkUI(options?: { url?: string; actions?: UserAction[]; scenario?: string }): Promise<UICheckResult> {
+    return this.checkPopup(options?.url, options?.actions, options?.scenario);
   }
 
-  async checkPopup(targetUrl?: string, actions?: UserAction[]): Promise<UICheckResult> {
+  async checkPopup(targetUrl?: string, actions?: UserAction[], scenarioName?: string): Promise<UICheckResult> {
     if (!this.context || !this.extensionId) {
       throw new Error('Extension not loaded');
     }
@@ -331,10 +341,24 @@ export class ChromeExtensionAdapter extends BaseDevServer {
 
     this.logger.log('info', 'Checking Popup UI...', 'system');
     
+    // シナリオが指定されている場合、先に実行
+    let scenarioResult: ScenarioExecutionResult | null = null;
+    if (scenarioName) {
+      try {
+        scenarioResult = await this.executeScenario(scenarioName);
+        if (!scenarioResult || !scenarioResult.success) {
+          throw new Error(`Scenario execution failed: ${scenarioResult?.error || 'Unknown error'}`);
+        }
+      } catch (error: any) {
+        this.logger.log('error', `Scenario execution error: ${error.message}`, 'scenario');
+        throw error;
+      }
+    }
+    
     // ターゲットURLが指定されている場合、先にそのページを開く
     let targetPage: Page | null = null;
     
-    // Tab Mixerデバッグ用ロジック
+    // Tab Mixerデバッグ用ロジック（後方互換性のため残すが、シナリオ機能に移行推奨）
     if (targetUrl === 'debug:tab_mixer') {
       this.logger.log('info', 'Starting Tab Mixer debug scenario...', 'system');
       
@@ -515,7 +539,7 @@ export class ChromeExtensionAdapter extends BaseDevServer {
       await targetPage.close();
     }
 
-    return {
+    const result: UICheckResult = {
       loaded: true,
       screenshot: screenshotPath,
       dom,
@@ -525,6 +549,17 @@ export class ChromeExtensionAdapter extends BaseDevServer {
         loadTime: Date.now() - loadTimeStart
       }
     };
+
+    // シナリオ実行結果を追加
+    if (scenarioResult) {
+      result.scenario = {
+        name: scenarioName!,
+        logs: scenarioResult.logs,
+        executionTime: scenarioResult.executionTime
+      };
+    }
+
+    return result;
   }
 
   async openPopup(): Promise<{ success: boolean; message: string }> {
@@ -943,6 +978,171 @@ export class ChromeExtensionAdapter extends BaseDevServer {
         error: error.message
       };
     }
+  }
+
+  // Scenario execution methods
+  async executeScenario(scenarioName: string): Promise<ScenarioExecutionResult> {
+    if (!this.scenarioLoader) {
+      const rootDir = this.state.config.workDir ? path.resolve(this.state.config.workDir) : path.resolve(this.state.config.projectPath);
+      this.scenarioLoader = new ScenarioLoader(rootDir, this.logger);
+    }
+
+    const startTime = Date.now();
+    const scenarioLogs: LogEntry[] = [];
+
+    try {
+      // シナリオを読み込む
+      const scenario = await this.scenarioLoader.loadScenario(`${scenarioName}.scenario.js`);
+
+      // ログ収集のためのラッパー
+      const originalLog = this.logger.log.bind(this.logger);
+      const logWrapper = (type: LogEntry['type'], content: string, source: string) => {
+        if (source === 'scenario') {
+          scenarioLogs.push({
+            timestamp: Date.now(),
+            type,
+            content,
+            source
+          });
+        }
+        originalLog(type, content, source);
+      };
+      this.logger.log = logWrapper as any;
+
+      try {
+        // コンテキストの取得（共有コンテキストモデル）
+        const context = scenario.requiresPersistentContext
+          ? await this.ensurePersistentContext()
+          : await this.ensureSharedContext();
+
+        // Service Worker初期化
+        if (scenario.requiresServiceWorkerInit && this.extensionId) {
+          await this.initServiceWorker(this.extensionId);
+        }
+
+        // シナリオ実行
+        await scenario.setup(context, this.logger);
+
+        // クリーンアップ（デフォルト動作 + カスタム）
+        await this.executeCleanup(scenario, context);
+
+        return {
+          success: true,
+          logs: scenarioLogs,
+          executionTime: Date.now() - startTime
+        };
+      } finally {
+        // ロガーを元に戻す
+        this.logger.log = originalLog;
+      }
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        logs: scenarioLogs,
+        executionTime: Date.now() - startTime
+      };
+    }
+  }
+
+  private async ensureSharedContext(): Promise<BrowserContext> {
+    if (!this.context) {
+      throw new Error('Browser context not initialized');
+    }
+    
+    // 共有コンテキストは既存のcontextを使用（軽量なシナリオ用）
+    // 必要に応じて新しいBrowserContextを作成することも可能
+    return this.context;
+  }
+
+  private async ensurePersistentContext(): Promise<BrowserContext> {
+    if (!this.context) {
+      throw new Error('Browser context not initialized');
+    }
+    
+    // PersistentContextは既存のcontext（launchPersistentContextで作成済み）を使用
+    return this.context;
+  }
+
+  private async initServiceWorker(extensionId: string): Promise<void> {
+    this.logger.log('info', 'Initializing Service Worker...', 'scenario');
+
+    // 1. Service Workerを強制起動
+    await this.wakeUpServiceWorker();
+
+    // 2. Service Workerが起動するまで待機
+    await this.waitForServiceWorkerReady(extensionId);
+
+    this.logger.log('info', 'Service Worker initialized', 'scenario');
+  }
+
+  private async waitForServiceWorkerReady(extensionId: string): Promise<void> {
+    if (!this.context) {
+      throw new Error('Browser context not initialized');
+    }
+
+    const maxAttempts = 10;
+    for (let i = 0; i < maxAttempts; i++) {
+      const workers = this.context.serviceWorkers();
+      const sw = workers.find(w => w.url().includes(extensionId));
+      if (sw) {
+        this.logger.log('info', 'Service Worker is ready', 'scenario');
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    throw new Error('Service Worker did not start within timeout');
+  }
+
+  private async executeCleanup(scenario: Scenario, context: BrowserContext): Promise<void> {
+    // カスタムcleanupがある場合は実行
+    if (scenario.cleanup) {
+      try {
+        await scenario.cleanup(context, this.logger);
+      } catch (error: any) {
+        this.logger.log('warn', `Custom cleanup failed: ${error.message}`, 'scenario');
+      }
+    }
+
+    // デフォルトクリーンアップ（常に実行）
+    await this.defaultCleanup(context);
+  }
+
+  private async defaultCleanup(context: BrowserContext): Promise<void> {
+    this.logger.log('info', 'Executing default cleanup...', 'scenario');
+
+    try {
+      // 1. すべてのページを閉じる（拡張機能のポップアップなどは除外）
+      const pages = context.pages();
+      const pagesToClose = pages.filter(page => {
+        const url = page.url();
+        // 拡張機能のページは保持
+        return !url.startsWith('chrome-extension://') && 
+               !url.startsWith('chrome://') &&
+               !url.startsWith('about:');
+      });
+
+      for (const page of pagesToClose) {
+        try {
+          await page.close();
+        } catch (error: any) {
+          this.logger.log('warn', `Failed to close page: ${error.message}`, 'scenario');
+        }
+      }
+
+      this.logger.log('info', `Closed ${pagesToClose.length} pages`, 'scenario');
+    } catch (error: any) {
+      this.logger.log('warn', `Default cleanup error: ${error.message}`, 'scenario');
+    }
+  }
+
+  getScenarioLoader(): ScenarioLoader | null {
+    // ScenarioLoaderが初期化されていない場合は初期化
+    if (!this.scenarioLoader) {
+      const rootDir = this.state.config.workDir ? path.resolve(this.state.config.workDir) : path.resolve(this.state.config.projectPath);
+      this.scenarioLoader = new ScenarioLoader(rootDir, this.logger);
+    }
+    return this.scenarioLoader;
   }
 }
 

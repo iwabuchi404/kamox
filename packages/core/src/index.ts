@@ -8,3 +8,4 @@ export * from './utils/screenshot.js';
 export * from './utils/rebuild.js';
 export * from './utils/ConfigLoader.js';
 export * from './utils/ProjectDetector.js';
+export * from './utils/scenarioLoader.js';
