@@ -142,4 +142,3 @@ export interface ScenarioExecutionResult {
   executionTime: number;
   error?: string;
 }
-
