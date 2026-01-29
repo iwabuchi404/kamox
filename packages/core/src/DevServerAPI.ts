@@ -18,7 +18,12 @@ export class DevServerAPI {
   private setupRoutes() {
     // 共通エンドポイント
     this.app.get('/status', async (req: Request, res: Response) => {
-      const status = this.adapter.getStatus();
+      let status;
+      if ('getStatusAsync' in this.adapter) {
+        status = await (this.adapter as any).getStatusAsync();
+      } else {
+        status = this.adapter.getStatus();
+      }
       res.json({
         success: true,
         timestamp: new Date().toISOString(),
@@ -48,8 +53,8 @@ export class DevServerAPI {
 
     this.app.post('/check-ui', async (req: Request, res: Response) => {
       try {
-        const { url, actions, scenario } = req.body;
-        const result = await this.adapter.checkUI({ url, actions, scenario });
+        const { url, actions, scenario, windowIndex, windowTitle } = req.body;
+        const result = await this.adapter.checkUI({ url, actions, scenario, windowIndex, windowTitle } as any);
         res.json({
           success: true,
           timestamp: new Date().toISOString(),
@@ -140,6 +145,17 @@ export class DevServerAPI {
         environment: this.adapter.getEnvironment(),
         data: logs
       });
+    });
+
+    this.app.post('/logs/clear', async (req: Request, res: Response) => {
+      if ('clearLogs' in this.adapter) {
+        (this.adapter as any).clearLogs();
+      } else {
+        // IDevServer 経由で logger にアクセス
+        const logger = (this.adapter as any).logger;
+        if (logger) logger.clearLogs();
+      }
+      res.json({ success: true });
     });
 
     // Playwright API endpoints
@@ -358,9 +374,15 @@ export class DevServerAPI {
 
     // ダッシュボード（簡易版）
     this.app.get('/', async (req: Request, res: Response) => {
-      const status = this.adapter.getStatus();
+      let status;
+      if ('getStatusAsync' in this.adapter) {
+        status = await (this.adapter as any).getStatusAsync();
+      } else {
+        status = this.adapter.getStatus();
+      }
       const logs = this.adapter.collectLogs();
       const environment = this.adapter.getEnvironment();
+      const isElectron = environment === 'electron';
       
       // エラーログの抽出
       const systemErrors = logs.runtime.filter((l: any) => l.type === 'error');
@@ -388,18 +410,22 @@ export class DevServerAPI {
     .status-ok { background: #e6fffa; color: #00b894; }
     .status-error { background: #ffe6e6; color: #d63031; }
     .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
-    .info-item { margin-bottom: 10px; }
+    .info-item { margin-bottom: 15px; }
     .label { font-size: 0.85em; color: #7f8c8d; display: block; margin-bottom: 4px; }
     .value { font-size: 1.1em; font-weight: 500; }
     button { background: #0984e3; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 1em; transition: background 0.2s; }
     button:hover { background: #0074d9; }
     button:disabled { background: #b2bec3; cursor: not-allowed; }
-    .log-box { background: #2d3436; color: #dfe6e9; padding: 15px; border-radius: 4px; overflow-x: auto; font-family: monospace; font-size: 0.9em; max-height: 300px; overflow-y: auto; }
-    .log-entry { margin-bottom: 4px; border-bottom: 1px solid #444; padding-bottom: 4px; }
-    .log-time { color: #636e72; margin-right: 10px; }
+    select { padding: 8px; border-radius: 4px; border: 1px solid #ddd; width: 100%; font-size: 1em; }
+    .log-box { background: #2d3436; color: #dfe6e9; padding: 15px; border-radius: 4px; overflow-x: auto; font-family: monospace; font-size: 0.9em; max-height: 400px; overflow-y: auto; }
+    .log-entry { margin-bottom: 4px; border-bottom: 1px solid #444; padding-bottom: 4px; display: flex; align-items: flex-start; }
+    .log-time { color: #636e72; margin-right: 10px; white-space: nowrap; }
+    .log-source { color: #81ecec; margin-right: 10px; font-weight: bold; min-width: 80px; }
+    .log-content { word-break: break-all; }
     .log-error { color: #ff7675; }
     .log-warn { color: #ffeaa7; }
     .log-info { color: #74b9ff; }
+    .log-ipc { border-left: 3px solid #fdcb6e; padding-left: 8px; background: rgba(253, 203, 110, 0.1); }
     .error-alert { background: #ffe6e6; border-left: 4px solid #d63031; padding: 15px; margin-bottom: 20px; border-radius: 4px; }
     .error-title { font-weight: bold; color: #d63031; margin-bottom: 5px; }
     .logo { height: 40px; margin-right: 15px; vertical-align: middle; }
@@ -431,9 +457,10 @@ export class DevServerAPI {
     </div>
     
     <div class="actions">
-      <button onclick="openPopup()" title="Open popup in a new tab">Open Popup</button>
+      ${!isElectron ? `<button onclick="openPopup()" title="Open popup in a new tab">Open Popup</button>` : ''}
       <button onclick="checkUI()" class="btn-secondary" title="Check UI and show screenshot">Check UI</button>
-      <button onclick="wakeUpSW()" class="btn-secondary" title="Wake up Service Worker">Wake Up SW</button>
+      ${!isElectron ? `<button onclick="wakeUpSW()" class="btn-secondary" title="Wake up Service Worker">Wake Up SW</button>` : ''}
+      ${isElectron ? `<button onclick="rebuild()" class="btn-secondary" title="Restart Application">Restart App</button>` : ''}
     </div>
 
     <div>
@@ -462,20 +489,28 @@ export class DevServerAPI {
         <span class="label">Status</span>
         <span class="value" style="color: #00b894">● Running</span>
       </div>
+      ${isElectron ? `
+      <div class="info-item">
+        <span class="label">Target Window</span>
+        <select id="windowSelector" onchange="window.selectedWindow = this.value">
+          ${status.windows?.map((w: any) => `<option value="${w.index}">${w.title}</option>`).join('') || '<option value="0">Default Window</option>'}
+        </select>
+      </div>
+      ` : ''}
       <div style="margin-top: 20px;">
-        <button onclick="rebuild()" id="rebuildBtn">Rebuild & Reload</button>
+        <button onclick="rebuild()" id="rebuildBtn">${isElectron ? 'Restart Application' : 'Rebuild & Reload'}</button>
       </div>
     </div>
-
+ 
     <div class="card">
-      <h2>Recent Logs</h2>
+      <h2>Activity Logs</h2>
+      <div style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center;">
+        <input type="checkbox" id="ipcOnly" onchange="window.ipcOnly = this.checked; renderLogs()">
+        <label for="ipcOnly" style="font-size: 0.9em;">IPC Only</label>
+        <button onclick="clearLogs()" style="padding: 4px 8px; font-size: 0.8em; background: #636e72;">Clear</button>
+      </div>
       <div class="log-box" id="logBox">
-        ${recentLogs.map((log: any) => `
-          <div class="log-entry">
-            <span class="log-time">[${new Date(log.timestamp).toLocaleTimeString()}]</span>
-            <span class="log-${log.type}">${log.content}</span>
-          </div>
-        `).join('')}
+        <!-- Logs will be rendered by JS -->
       </div>
     </div>
   </div>
@@ -490,10 +525,48 @@ export class DevServerAPI {
   </div>
 
   <script>
+    window.selectedWindow = 0;
+    window.ipcOnly = false;
+    window.allLogs = { runtime: [], pages: {} };
+
+    function renderLogs() {
+      const logBox = document.getElementById('logBox');
+      let logs = [...window.allLogs.runtime];
+      
+      // 合併全てのページのログ
+      Object.entries(window.allLogs.pages).forEach(([source, pageLogs]) => {
+        pageLogs.forEach(l => logs.push({ ...l, source }));
+      });
+
+      // タイムスタンプでソート
+      logs.sort((a, b) => b.timestamp - a.timestamp);
+
+      if (window.ipcOnly) {
+        logs = logs.filter(l => l.content.includes('[IPC]') || l.content.includes('[Main]'));
+      }
+
+      logBox.innerHTML = logs.slice(0, 200).map(log => {
+        const isIPC = log.content.includes('[IPC]') || log.content.includes('[Main]');
+        return \`
+          <div class="log-entry \${isIPC ? 'log-ipc' : ''}">
+            <span class="log-time">[\${new Date(log.timestamp).toLocaleTimeString()}]</span>
+            <span class="log-source">\${log.source || 'system'}</span>
+            <span class="log-content log-\${log.type}">\${log.content}</span>
+          </div>
+        \`;
+      }).join('');
+    }
+
+    async function clearLogs() {
+      await fetch('/logs/clear', { method: 'POST' });
+      window.allLogs = { runtime: [], pages: {} };
+      renderLogs();
+    }
+
     async function rebuild() {
       const btn = document.getElementById('rebuildBtn');
       btn.disabled = true;
-      btn.textContent = 'Rebuilding...';
+      btn.textContent = '\${isElectron ? 'Restarting...' : 'Rebuilding...'}';
       
       try {
         const res = await fetch('/rebuild', { method: 'POST' });
@@ -501,31 +574,27 @@ export class DevServerAPI {
         if (data.success) {
           location.reload();
         } else {
-          alert('Build failed! Check logs.');
+          alert('Failed! Check logs.');
           btn.disabled = false;
-          btn.textContent = 'Rebuild & Reload';
+          btn.textContent = '\${isElectron ? 'Restart App' : 'Rebuild & Reload'}';
         }
       } catch (e) {
         alert('Error: ' + e.message);
         btn.disabled = false;
-        btn.textContent = 'Rebuild & Reload';
+        btn.textContent = '\${isElectron ? 'Restart App' : 'Rebuild & Reload'}';
       }
     }
-
+ 
     async function openPopup() {
       try {
         const res = await fetch('/playwright/open-popup', { method: 'POST' });
         const data = await res.json();
-        if (data.success) {
-          // alert('Popup opened!');
-        } else {
-          alert('Failed: ' + data.error);
-        }
+        if (!data.success) alert('Failed: ' + data.error);
       } catch (e) {
         alert('Error: ' + e.message);
       }
     }
-
+ 
     async function wakeUpSW() {
       const btn = event.target;
       const originalText = btn.innerText;
@@ -535,12 +604,7 @@ export class DevServerAPI {
       try {
         const res = await fetch('/playwright/wake-up', { method: 'POST' });
         const data = await res.json();
-        
-        if (data.success) {
-          alert('Service Worker wake up triggered!');
-        } else {
-          alert('Failed: ' + (data.error || data.data?.message));
-        }
+        if (!data.success) alert('Failed: ' + (data.error || data.data?.message));
       } catch (e) {
         alert('Error: ' + e.message);
       }
@@ -554,15 +618,19 @@ export class DevServerAPI {
       document.getElementById('checkUiContent').innerHTML = 'Checking UI... (Taking screenshot)';
       
       try {
-        const res = await fetch('/check-ui', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({}) });
+        const res = await fetch('/check-ui', { 
+          method: 'POST', 
+          headers: {'Content-Type': 'application/json'}, 
+          body: JSON.stringify({ windowIndex: parseInt(window.selectedWindow) }) 
+        });
         const json = await res.json();
         
         if (json.success) {
-          // パスからファイル名を抽出
           const filename = json.data.screenshot.split(/[\\\\/]/).pop();
           const imgUrl = '/screenshots/' + filename;
           
-          let content = '<img src="' + imgUrl + '">';
+          let content = '<div style="margin-bottom: 10px; font-weight: bold;">' + json.data.dom.title + '</div>';
+          content += '<img src="' + imgUrl + '">';
           
           if (json.data.errors && json.data.errors.length > 0) {
              content += '<h3 style="color:#d63031">Errors:</h3><pre>' + JSON.stringify(json.data.errors, null, 2) + '</pre>';
@@ -582,36 +650,43 @@ export class DevServerAPI {
     function closeModal() {
       document.getElementById('checkUiModal').style.display = 'none';
     }
-
-    // Close modal when clicking outside
+ 
     window.onclick = function(event) {
       const modal = document.getElementById('checkUiModal');
-      if (event.target == modal) {
-        modal.style.display = "none";
+      if (event.target == modal) modal.style.display = "none";
+    }
+ 
+    // Auto-refresh logs and status
+    async function update() {
+      try {
+        const [logRes, statusRes] = await Promise.all([
+          fetch('/logs'),
+          fetch('/status')
+        ]);
+        
+        const logData = await logRes.json();
+        if (logData.success) {
+          window.allLogs = logData.data;
+          renderLogs();
+        }
+
+        const statusData = await statusRes.json();
+        if (statusData.success && statusData.data.windows) {
+          const selector = document.getElementById('windowSelector');
+          if (selector) {
+            const currentVal = selector.value;
+            selector.innerHTML = statusData.data.windows.map(w => \`
+              <option value="\${w.index}" \${w.index == currentVal ? 'selected' : ''}>\${w.title}</option>
+            \`).join('');
+          }
+        }
+      } catch (e) {
+        console.error('Update failed', e);
       }
     }
 
-    // Auto-refresh logs every 5 seconds
-    setInterval(async () => {
-      try {
-        const res = await fetch('/logs');
-        const data = await res.json();
-        if (data.success) {
-          const logs = data.data.runtime.slice(-100).reverse();
-          const logBox = document.getElementById('logBox');
-          // Only update if content changed (simple check)
-          // For now just replace
-          logBox.innerHTML = logs.map(log => \`
-            <div class="log-entry">
-              <span class="log-time">[\${new Date(log.timestamp).toLocaleTimeString()}]</span>
-              <span class="log-\${log.type}">\${log.content}</span>
-            </div>
-          \`).join('');
-        }
-      } catch (e) {
-        console.error('Failed to fetch logs', e);
-      }
-    }, 5000);
+    setInterval(update, 3000);
+    update();
   </script>
 </body>
 </html>

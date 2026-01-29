@@ -21,7 +21,12 @@ export class Logger {
 
     if (source === 'build') {
       this.logs.build.push(entry);
-    } else if (source.startsWith('page_')) {
+    } else if (
+      source.startsWith('page_') || 
+      source.startsWith('window_') || 
+      source.startsWith('popup_') || 
+      source.startsWith('script_')
+    ) {
       if (!this.logs.pages[source]) {
         this.logs.pages[source] = [];
       }

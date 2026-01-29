@@ -4,6 +4,7 @@ export interface ServerConfig {
   buildCommand?: string;
   environment: 'chrome' | 'electron' | 'vscode';
   workDir?: string;
+  entryPoint?: string;
 }
 
 export interface LogEntry {
@@ -79,6 +80,7 @@ export interface ServerStatus {
     checkCommand: boolean;
   };
   projectName?: string;
+  windows?: Array<{ index: number; title: string }>;
 }
 
 // Playwright API types
