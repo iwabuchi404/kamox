@@ -12,7 +12,7 @@ AIエージェントとローカル開発環境のギャップを埋め、ビル
 ## 特徴
 
 - **🤖 AIファースト**: AIエージェントがHTTP API経由で対話（ビルド、検証、ログ取得）できるように設計。
-- **🔌 プラグインアーキテクチャ**: Chrome拡張、Electron、VSCode拡張に対応（現在はChromeのみ）。
+- **🔌 プラグインアーキテクチャ**: Chrome拡張、Electron、VSCode拡張に対応。
 - **⚡ 自動検証**: **Playwright** を使用してスクリーンショット撮影、DOM情報取得、ログ収集を自動化。
 - **🛡️ 堅牢なエラー検出**: 拡張機能のロードエラー、実行時エラー、CSP違反を自動検出し通知。
 - 🔄 **ホットリロード**: コード変更時に拡張機能を自動リロード。
@@ -34,18 +34,21 @@ npm install -g kamox
 
 ## クイックスタート
 
-### Chrome拡張プロジェクトでの使用
-
-```bash
-# 拡張機能プロジェクトのディレクトリに移動
-cd /path/to/your-extension
-
-# プロジェクトの設定を自動検出（推奨）
-kamox detect
-
 # KamoXサーバーを起動（自動ビルド有効）
 kamox chrome --auto-build
 ```
+
+### Electronプロジェクトでの使用
+
+```bash
+# アプリのディレクトリに移動
+cd /path/to/electron-app
+
+# KamoXサーバーを起動（Electronモード）
+kamox electron --entryPoint main.js
+```
+
+詳細は [docs/electron_ja.md](docs/electron_ja.md) を参照してください。
 
 > **Note**: 開発者としてソースコードから実行する場合は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
 

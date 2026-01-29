@@ -14,18 +14,21 @@ npm install -g kamox
 
 ## Quick Start
 
-### For Chrome Extension Projects
-
-```bash
-# Go to your extension project directory
-cd /path/to/your-extension
-
-# Auto-detect project configuration (Recommended)
-kamox detect
-
 # Start KamoX server (with auto-build enabled)
 kamox chrome --auto-build
 ```
+
+### For Electron Projects
+
+```bash
+# Go to your Electron project directory
+cd /path/to/electron-app
+
+# Start KamoX server for Electron
+kamox electron --entryPoint main.js
+```
+
+See [docs/electron.md](docs/electron.md) for details.
 
 > **Note**: If you want to run from source code as a contributor, please refer to [CONTRIBUTING.md](CONTRIBUTING.md).
 

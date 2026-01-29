@@ -63,6 +63,9 @@ The `context` object passed to `setup` is a standard [Playwright BrowserContext]
 - `await context.storageState()`: Get storage state.
 - `await context.grantPermissions(permissions)`: Grant permissions origin-wide.
 
+> [!NOTE]
+> **Electron Context (Desktop App)**: In Electron mode, the `context` represents the standard `ElectronApplication.context()`. Use `context.pages()` to access already open windows instead of `newPage()` if you want to interact with existing app windows.
+
 ### `logger` (KamoX Logger)
 The `logger` object allows you to write logs that will appear in the KamoX Dashboard and API responses.
 
