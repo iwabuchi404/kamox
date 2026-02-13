@@ -14,10 +14,11 @@
     "cli": "npm run start --workspace=kamox-cli"
   },
   "devDependencies": {
-    "typescript": "^5.3.0",
     "@types/node": "^20.10.0",
+    "electron": "^28.3.3",
     "eslint": "^8.56.0",
-    "prettier": "^3.1.0"
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.0"
   },
   "author": "KamoX Team",
   "license": "MIT",

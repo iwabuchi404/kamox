@@ -2,6 +2,7 @@
 import { Command } from 'commander';
 import { DevServerAPI } from '@kamox/core/dist/DevServerAPI.js';
 import { ChromeExtensionAdapter } from '@kamox/plugin-chrome/dist/ChromeExtensionAdapter.js';
+import { ElectronAdapter } from '@kamox/plugin-electron/dist/ElectronAdapter.js';
 import { ConfigLoader } from '@kamox/core/dist/utils/ConfigLoader.js';
 import { ProjectDetector } from '@kamox/core/dist/utils/ProjectDetector.js';
 import path from 'path';
@@ -157,6 +158,81 @@ program
       process.exit(1);
     }
   });
+
+program
+  .command('electron')
+  .description('Start dev server for Electron application')
+  .option('-p, --port <number>', 'Server port', '3000')
+  .option('-e, --entry-point <path>', 'Main entry point file', 'main.js')
+  .option('-c, --config <path>', 'Path to config file')
+  .action(async (options) => {
+    try {
+      const cwd = process.cwd();
+      const loader = new ConfigLoader(cwd);
+
+      const { config, source } = loader.load({
+        mode: 'electron',
+        port: options.port ? parseInt(options.port) : undefined,
+        configPath: options.config
+      });
+
+      const port = config.port || parseInt(options.port);
+      const entryPoint = options.entryPoint || config.entryPoint || 'main.js';
+      const mainPath = path.resolve(cwd, entryPoint);
+
+      console.log(`KamoX v${packageJson.version}`);
+      console.log(`Mode:     Electron`);
+      console.log(`Project:  ${cwd}`);
+      console.log(`Entry:    ${entryPoint}`);
+      console.log(`Config:   ${source}`);
+      console.log(`Port:     ${port}`);
+      console.log('')
+
+      if (!fs.existsSync(mainPath)) {
+        console.error(`Entry point not found: ${mainPath}`)
+        console.error('')
+        console.error('Please specify the correct entry point:')
+        console.error(`  kamox electron --entry-point ./src/main.js`)
+        console.error('')
+        process.exit(1)
+      }
+
+      const adapterConfig = {
+        projectPath: cwd,
+        entryPoint,
+        environment: 'electron',
+      }
+
+      const adapter = new ElectronAdapter(adapterConfig as any)
+
+      console.log('Launching Electron...')
+      await adapter.launch()
+
+      console.log('')
+      console.log(`Dashboard:  http://localhost:${port}/`)
+      console.log(`API Status: http://localhost:${port}/status`)
+      console.log('')
+      console.log('Press Ctrl+C to stop')
+      console.log('')
+
+      const api = new DevServerAPI(adapter)
+      api.start(port)
+
+    } catch (error: any) {
+      console.error('')
+      console.error('Fatal error:', error.message)
+      console.error('')
+
+      if (error.message.includes('electron')) {
+        console.error('Possible causes:')
+        console.error('  1. electron package is not installed')
+        console.error('  2. Run: npm install --save-dev electron')
+        console.error('')
+      }
+
+      process.exit(1)
+    }
+  })
 
 program
   .command('detect')

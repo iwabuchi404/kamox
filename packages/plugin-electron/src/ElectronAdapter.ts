@@ -37,10 +37,20 @@ export class ElectronAdapter extends BaseDevServer {
 
     this.logger.log('info', `Launching Electron app with entry: ${mainPath}`, 'system');
 
+    // VSCode ターミナル等で ELECTRON_RUN_AS_NODE=1 が設定されていると
+    // Electron がブラウザモードで起動せず Node.js モードになる問題を回避
+    const launchEnv: { [key: string]: string } = {};
+    for (const [key, value] of Object.entries(process.env)) {
+      if (key !== 'ELECTRON_RUN_AS_NODE' && value !== undefined) {
+        launchEnv[key] = value;
+      }
+    }
+
     try {
       this.electronApp = await electron.launch({
         args: [mainPath],
-        cwd: projectPath
+        cwd: projectPath,
+        env: launchEnv
       });
     } catch (e: any) {
       this.logger.log('error', `Failed to launch Electron: ${e.message}`, 'system');
@@ -48,11 +58,11 @@ export class ElectronAdapter extends BaseDevServer {
     }
 
     // ログ収集の設定 (メインプロセス)
-    const process = this.electronApp.process();
-    process.stdout?.on('data', (data) => {
+    const appProcess = this.electronApp.process();
+    appProcess.stdout?.on('data', (data) => {
       this.logger.log('info', data.toString().trim(), 'system');
     });
-    process.stderr?.on('data', (data) => {
+    appProcess.stderr?.on('data', (data) => {
       // stderr は無条件でエラーとして記録
       const content = data.toString().trim();
       if (content) {
