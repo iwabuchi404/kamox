@@ -1,6 +1,6 @@
 {
     "name": "@kamox/plugin-chrome",
-    "version": "0.1.5",
+    "version": "0.1.8",
     "description": "Chrome extension adapter for KamoX using Playwright - Automated testing and live preview for browser extensions",
     "keywords": [
         "chrome-extension",
@@ -21,7 +21,7 @@
         "build": "tsc"
     },
     "dependencies": {
-        "@kamox/core": "^0.1.2",
+        "@kamox/core": "^0.1.8",
         "playwright": "^1.40.0"
     },
     "files": [

@@ -404,9 +404,11 @@ kamox/  (リポジトリルート)
 - [ ] 設定ファイル対応
 - [ ] npmパッケージ公開準備
 
-### Phase 2: Electron Plugin（Week 3-4）
+### Phase 2: Electron Plugin（完了）
 - ElectronAdapter実装
 - IPC確認機能
+- IPC / ダイアログモック機能（アプリ無変更でモック注入）
+- IPC スパイ機能（双方向通信キャプチャ）
 
 ### Phase 3: VSCode Extension Plugin（将来）
 - VSCodeExtensionAdapter実装

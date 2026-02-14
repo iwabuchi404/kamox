@@ -26,7 +26,30 @@ In your `kamox.config.json`:
 
 - **Automated Launch**: Handles Electron process management via Playwright.
 - **IPC Insights**: Captures logs from Main and Renderer processes, including IPC communication.
+- **IPC / Dialog Mocking**: Mock `ipcMain.handle` responses and native dialogs without modifying app code.
+- **IPC Spy**: Bidirectional IPC communication capture (Renderer→Main via `ipcMain.handle`/`on`, Main→Renderer via `webContents.send`).
 - **Multi-Window Management**: Seamlessly switch between different app windows for inspection.
 - **Unified API**: Compatible with standard KamoX Playwright action endpoints.
+
+## Mock API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/mock-ipc` | Set IPC mock response |
+| DELETE | `/mock-ipc?channel=<name>` | Clear IPC mock |
+| POST | `/mock-dialog` | Set dialog mock response |
+| DELETE | `/mock-dialog?method=<name>` | Clear dialog mock |
+| GET | `/mocks` | Get all active mocks |
+| DELETE | `/mocks` | Clear all mocks |
+
+## IPC Spy API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/ipc-spy/start` | Start capturing IPC messages |
+| POST | `/ipc-spy/stop` | Stop capturing |
+| GET | `/ipc-spy/status` | Get spy status |
+| GET | `/ipc-spy/logs?since=<id>` | Get captured logs (incremental) |
+| DELETE | `/ipc-spy/logs` | Clear captured logs |
 
 For detailed documentation, see the [official Electron guide](https://github.com/iwabuchi404/kamox/blob/main/docs/electron.md).

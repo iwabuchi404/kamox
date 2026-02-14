@@ -7,6 +7,8 @@ KamoX は、**Electron アプリケーション** のための強力な開発お
 - 🚀 **ワンコマンド起動**: Electron アプリと KamoX サーバーを同時に起動。
 - 📺 **複数ウィンドウ対応**: 開いているすべてのウィンドウを自動検知し、個別に操作・検証可能。
 - 📡 **IPC 監視**: メインプロセスとレンダラープロセス間の通信をキャプチャしてログ表示。
+- 🎭 **IPC / ダイアログモック**: アプリコードを変更せずに `ipcMain.handle` のレスポンスやネイティブダイアログ（`showOpenDialog` 等）をモック可能。
+- 🔍 **IPC スパイ**: 双方向の IPC 通信キャプチャ（Renderer→Main / Main→Renderer）。フィルタリングと差分取得に対応。
 - 🖱️ **Playwright 統合**: Playwright API を使用して、ウィンドウに対するクリック、入力などの操作をフルコントロール。
 - 🛠️ **統合ログ**: メインプロセスの `stdout/stderr` と、全レンダラーの `console` ログを統合表示。
 - 🧪 **シナリオテスト**: 複雑なアプリ状態を再現するための自動操作フローを定義可能。
@@ -78,6 +80,96 @@ curl -X POST http://localhost:3000/check-ui \
     "windowIndex": 1
   }'
 ```
+
+## IPC / ダイアログモック
+
+KamoX は、アプリケーションコードを一切変更せずに IPC レスポンスやネイティブダイアログをモックできます。Electron の `-r`（require）フラグを利用してメインプロセスにフックを注入する仕組みです。
+
+### IPC モック
+
+```bash
+# IPC チャンネルのモックレスポンスを設定
+curl -X POST http://localhost:3000/mock-ipc \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel": "get-user-data",
+    "response": { "name": "Test User", "id": 1 }
+  }'
+
+# アクティブなモック一覧を取得
+curl http://localhost:3000/mocks
+
+# 特定の IPC モックをクリア
+curl -X DELETE "http://localhost:3000/mock-ipc?channel=get-user-data"
+
+# 全モックをクリア
+curl -X DELETE http://localhost:3000/mocks
+```
+
+### ダイアログモック
+
+対応メソッド: `showOpenDialog`, `showSaveDialog`, `showMessageBox`, `showMessageBoxSync`, `showErrorBox`
+
+```bash
+# ファイルオープンダイアログをモック
+curl -X POST http://localhost:3000/mock-dialog \
+  -H "Content-Type: application/json" \
+  -d '{
+    "method": "showOpenDialog",
+    "response": { "canceled": false, "filePaths": ["/tmp/test.txt"] }
+  }'
+
+# 特定のダイアログモックをクリア
+curl -X DELETE "http://localhost:3000/mock-dialog?method=showOpenDialog"
+```
+
+## IPC スパイ（通信モニター）
+
+IPC スパイは双方向の IPC 通信をリアルタイムにキャプチャします:
+
+- **Renderer → Main**: `ipcMain.handle`（invoke）および `ipcMain.on`（send）呼び出し
+- **Main → Renderer**: `webContents.send` 呼び出し
+
+### 使い方
+
+```bash
+# IPC メッセージのキャプチャを開始
+curl -X POST http://localhost:3000/ipc-spy/start
+
+# スパイの状態を確認
+curl http://localhost:3000/ipc-spy/status
+
+# キャプチャしたログを全件取得
+curl http://localhost:3000/ipc-spy/logs
+
+# 特定 ID 以降の新しいログのみ取得（差分取得）
+curl "http://localhost:3000/ipc-spy/logs?since=5"
+
+# キャプチャを停止
+curl -X POST http://localhost:3000/ipc-spy/stop
+
+# キャプチャしたログをクリア
+curl -X DELETE http://localhost:3000/ipc-spy/logs
+```
+
+### ログエントリのフォーマット
+
+```json
+{
+  "id": 1,
+  "timestamp": 1707800000000,
+  "direction": "renderer-to-main",
+  "channel": "submit-form",
+  "method": "on",
+  "args": [{ "username": "test" }],
+  "webContentsId": 1
+}
+```
+
+- `direction`: `"renderer-to-main"` または `"main-to-renderer"`
+- `method`: `"invoke"`（handle/invoke パターン）、`"on"`（send/on パターン）、`"send"`（webContents.send）
+- `webContentsId`: Main→Renderer メッセージのみ。送信先ウィンドウを識別
+- ログは循環バッファに保持（最大 1000 件）
 
 ## シナリオテスト
 

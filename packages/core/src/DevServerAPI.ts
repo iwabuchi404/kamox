@@ -282,6 +282,262 @@ export class DevServerAPI {
       });
     }
 
+    // ========== Mock API エンドポイント (Electron 専用) ==========
+
+    // IPC Mock
+    if ('setIPCMock' in this.adapter) {
+      this.app.post('/mock-ipc', async (req: Request, res: Response) => {
+        try {
+          const { channel, response } = req.body;
+          if (!channel) {
+            res.status(400).json({
+              success: false,
+              timestamp: new Date().toISOString(),
+              environment: this.adapter.getEnvironment(),
+              error: 'channel is required'
+            });
+            return;
+          }
+          await (this.adapter as any).setIPCMock(channel, response);
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { channel, response }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+
+      this.app.delete('/mock-ipc', async (req: Request, res: Response) => {
+        try {
+          // クエリパラメータまたは body からチャンネル名を取得
+          const channel = (req.query.channel as string) || req.body?.channel;
+          if (channel) {
+            await (this.adapter as any).clearIPCMock(channel);
+          } else {
+            await (this.adapter as any).clearAllIPCMocks();
+          }
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { cleared: channel || 'all' }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+    }
+
+    // Dialog Mock
+    if ('setDialogMock' in this.adapter) {
+      this.app.post('/mock-dialog', async (req: Request, res: Response) => {
+        try {
+          const { method, response } = req.body;
+          if (!method) {
+            res.status(400).json({
+              success: false,
+              timestamp: new Date().toISOString(),
+              environment: this.adapter.getEnvironment(),
+              error: 'method is required'
+            });
+            return;
+          }
+          await (this.adapter as any).setDialogMock(method, response);
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { method, response }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+
+      this.app.delete('/mock-dialog', async (req: Request, res: Response) => {
+        try {
+          const method = (req.query.method as string) || req.body?.method;
+          if (method) {
+            await (this.adapter as any).clearDialogMock(method);
+          } else {
+            await (this.adapter as any).clearAllDialogMocks();
+          }
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { cleared: method || 'all' }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+    }
+
+    // 全モック取得/一括クリア
+    if ('getAllMocks' in this.adapter) {
+      this.app.get('/mocks', async (req: Request, res: Response) => {
+        try {
+          const mocks = (this.adapter as any).getAllMocks();
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: mocks
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+
+      this.app.delete('/mocks', async (req: Request, res: Response) => {
+        try {
+          await (this.adapter as any).clearAllMocks();
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { cleared: 'all' }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+    }
+
+    // ========== IPC Spy エンドポイント (Electron 専用) ==========
+
+    if ('startIPCSpy' in this.adapter) {
+      this.app.post('/ipc-spy/start', async (req: Request, res: Response) => {
+        try {
+          await (this.adapter as any).startIPCSpy();
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { status: 'started' }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+
+      this.app.post('/ipc-spy/stop', async (req: Request, res: Response) => {
+        try {
+          await (this.adapter as any).stopIPCSpy();
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { status: 'stopped' }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+
+      this.app.get('/ipc-spy/status', (req: Request, res: Response) => {
+        try {
+          const status = (this.adapter as any).getIPCSpyStatus();
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: status
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+
+      this.app.get('/ipc-spy/logs', async (req: Request, res: Response) => {
+        try {
+          const sinceId = req.query.since ? parseInt(req.query.since as string, 10) : undefined;
+          const logs = await (this.adapter as any).getIPCSpyLogs(sinceId);
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { logs, count: logs.length }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+
+      this.app.delete('/ipc-spy/logs', async (req: Request, res: Response) => {
+        try {
+          await (this.adapter as any).clearIPCSpyLogs();
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { cleared: true }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+    }
+
     // ロゴ配信
     this.app.get('/logo.png', (req: Request, res: Response) => {
       const logoPath = path.join(__dirname, '../../images/logo_20251127.png');

@@ -7,6 +7,8 @@ KamoX provide a powerful development and automation server for **Electron applic
 - 🚀 **One-command Launch**: Start your Electron app and KamoX server simultaneously.
 - 📺 **Multi-Window Support**: Automatically detects and manages all open windows.
 - 📡 **IPC Monitoring**: Captures and logs messages between Main and Renderer processes.
+- 🎭 **IPC / Dialog Mocking**: Mock `ipcMain.handle` responses and native dialogs (`showOpenDialog`, etc.) without modifying your app code.
+- 🔍 **IPC Spy**: Bidirectional IPC communication capture (Renderer→Main and Main→Renderer) with filtering and incremental retrieval.
 - 🖱️ **Playwright Integration**: Full control over windows using Playwright APIs (Click, Type, etc.).
 - 🛠️ **Unified Logging**: Consolidates `stdout/stderr` from the Main process and `console` logs from all Renderers.
 - 🧪 **Scenario Testing**: Define automated setup flows to test complex application states.
@@ -78,6 +80,95 @@ curl -X POST http://localhost:3000/check-ui \
     "windowIndex": 1
   }'
 ```
+
+## IPC / Dialog Mocking
+
+KamoX can mock IPC responses and native dialogs without modifying your application code. The mock system uses Electron's `-r` (require) flag to inject hooks into the main process.
+
+### IPC Mock
+
+```bash
+# Set a mock response for an IPC channel
+curl -X POST http://localhost:3000/mock-ipc \
+  -H "Content-Type: application/json" \
+  -d '{
+    "channel": "get-user-data",
+    "response": { "name": "Test User", "id": 1 }
+  }'
+
+# Get all active mocks
+curl http://localhost:3000/mocks
+
+# Clear a specific IPC mock
+curl -X DELETE "http://localhost:3000/mock-ipc?channel=get-user-data"
+
+# Clear all mocks
+curl -X DELETE http://localhost:3000/mocks
+```
+
+### Dialog Mock
+
+Supported methods: `showOpenDialog`, `showSaveDialog`, `showMessageBox`, `showMessageBoxSync`, `showErrorBox`
+
+```bash
+# Mock a file open dialog
+curl -X POST http://localhost:3000/mock-dialog \
+  -H "Content-Type: application/json" \
+  -d '{
+    "method": "showOpenDialog",
+    "response": { "canceled": false, "filePaths": ["/tmp/test.txt"] }
+  }'
+
+# Clear a specific dialog mock
+curl -X DELETE "http://localhost:3000/mock-dialog?method=showOpenDialog"
+```
+
+## IPC Spy (Communication Monitor)
+
+The IPC Spy captures bidirectional IPC communication in real-time:
+- **Renderer → Main**: `ipcMain.handle` (invoke) and `ipcMain.on` (send) calls
+- **Main → Renderer**: `webContents.send` calls
+
+### Usage
+
+```bash
+# Start capturing IPC messages
+curl -X POST http://localhost:3000/ipc-spy/start
+
+# Check spy status
+curl http://localhost:3000/ipc-spy/status
+
+# Get all captured logs
+curl http://localhost:3000/ipc-spy/logs
+
+# Get only new logs since a specific ID (incremental retrieval)
+curl "http://localhost:3000/ipc-spy/logs?since=5"
+
+# Stop capturing
+curl -X POST http://localhost:3000/ipc-spy/stop
+
+# Clear captured logs
+curl -X DELETE http://localhost:3000/ipc-spy/logs
+```
+
+### Log Entry Format
+
+```json
+{
+  "id": 1,
+  "timestamp": 1707800000000,
+  "direction": "renderer-to-main",
+  "channel": "submit-form",
+  "method": "on",
+  "args": [{ "username": "test" }],
+  "webContentsId": 1
+}
+```
+
+- `direction`: `"renderer-to-main"` or `"main-to-renderer"`
+- `method`: `"invoke"` (handle/invoke pattern), `"on"` (send/on pattern), or `"send"` (webContents.send)
+- `webContentsId`: Only present for Main→Renderer messages, identifies the target window
+- Logs are stored in a circular buffer (max 1000 entries)
 
 ## Scenario Testing
 

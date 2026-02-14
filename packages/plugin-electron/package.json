@@ -1,6 +1,6 @@
 {
     "name": "@kamox/plugin-electron",
-    "version": "0.1.6",
+    "version": "0.1.8",
     "description": "Electron adapter for KamoX using Playwright - Automated testing and live preview for Electron applications",
     "keywords": [
         "electron",
@@ -14,10 +14,10 @@
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "scripts": {
-        "build": "tsc"
+        "build": "tsc && copy src\\electron-hook.js dist\\electron-hook.js"
     },
     "dependencies": {
-        "@kamox/core": "^0.1.5",
+        "@kamox/core": "^0.1.8",
         "playwright": "^1.40.0"
     },
     "files": [

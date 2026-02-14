@@ -25,6 +25,19 @@ export class ElectronAdapter extends BaseDevServer {
   private pageIds = new WeakMap<Page, string>();
   private scenarioLoader: ScenarioLoader | null = null;
 
+  // モック状態のローカルレジストリ（API レスポンス用）
+  private ipcMockRegistry: Record<string, any> = {};
+  private dialogMockRegistry: Record<string, any> = {};
+
+  // IPC スパイ状態
+  private spyActive: boolean = false;
+
+  // バリデーション用の許可リスト
+  private static readonly VALID_DIALOG_METHODS = [
+    'showOpenDialog', 'showSaveDialog', 'showMessageBox',
+    'showMessageBoxSync', 'showErrorBox'
+  ] as const;
+
   async launch(): Promise<void> {
     const projectPath = path.resolve(this.state.config.projectPath);
     // 起動ファイルの探索 (デフォルトは main.js)
@@ -46,9 +59,19 @@ export class ElectronAdapter extends BaseDevServer {
       }
     }
 
+    // electron-hook.js を -r フラグでメインプロセスに注入
+    // ipcMain.handle と dialog.* をフックし、global.__kamoxMocks を公開する
+    const hookPath = path.resolve(__dirname, 'electron-hook.js');
+    const hasHook = fs.existsSync(hookPath);
+    if (!hasHook) {
+      this.logger.log('warn', `Hook script not found at ${hookPath}, launching without mock support`, 'system');
+    }
+
+    const launchArgs = hasHook ? ['-r', hookPath, mainPath] : [mainPath];
+
     try {
       this.electronApp = await electron.launch({
-        args: [mainPath],
+        args: launchArgs,
         cwd: projectPath,
         env: launchEnv
       });
@@ -96,13 +119,18 @@ export class ElectronAdapter extends BaseDevServer {
 
   async reload(): Promise<void> {
     this.logger.log('info', 'Reloading Electron environment...', 'system');
-    
+
+    // 再起動でメインプロセスがリセットされるため、ローカルレジストリもクリア
+    this.ipcMockRegistry = {};
+    this.dialogMockRegistry = {};
+    this.spyActive = false;
+
     if (this.electronApp) {
       await this.electronApp.close();
     }
-    
+
     await this.launch();
-    
+
     this.buildCount++;
     this.lastBuildTime = new Date().toISOString();
   }
@@ -380,6 +408,162 @@ export class ElectronAdapter extends BaseDevServer {
       this.scenarioLoader = new ScenarioLoader(rootDir, this.logger);
     }
     return this.scenarioLoader;
+  }
+
+  // ========== IPC モック API ==========
+
+  async setIPCMock(channel: string, response: any): Promise<void> {
+    if (!this.electronApp) throw new Error('Electron app not running');
+    await this.electronApp.evaluate(
+      (_electron, { channel, response }) => {
+        const mocks = (globalThis as any).__kamoxMocks;
+        if (!mocks) throw new Error('KamoX hook not loaded');
+        mocks.setMock(channel, response);
+      },
+      { channel, response }
+    );
+    this.ipcMockRegistry[channel] = response;
+    this.logger.log('info', `IPC mock set: ${channel}`, 'system');
+  }
+
+  async clearIPCMock(channel: string): Promise<void> {
+    if (!this.electronApp) throw new Error('Electron app not running');
+    await this.electronApp.evaluate(
+      (_electron, { channel }) => {
+        const mocks = (globalThis as any).__kamoxMocks;
+        if (mocks) mocks.clearMock(channel);
+      },
+      { channel }
+    );
+    delete this.ipcMockRegistry[channel];
+    this.logger.log('info', `IPC mock cleared: ${channel}`, 'system');
+  }
+
+  async clearAllIPCMocks(): Promise<void> {
+    if (!this.electronApp) throw new Error('Electron app not running');
+    await this.electronApp.evaluate(() => {
+      const mocks = (globalThis as any).__kamoxMocks;
+      if (mocks) mocks.clearAllMocks();
+    });
+    this.ipcMockRegistry = {};
+    this.logger.log('info', 'All IPC mocks cleared', 'system');
+  }
+
+  // ========== Dialog モック API ==========
+
+  async setDialogMock(method: string, response: any): Promise<void> {
+    if (!this.electronApp) throw new Error('Electron app not running');
+    if (!(ElectronAdapter.VALID_DIALOG_METHODS as readonly string[]).includes(method)) {
+      throw new Error(`Invalid dialog method: ${method}. Valid: ${ElectronAdapter.VALID_DIALOG_METHODS.join(', ')}`);
+    }
+    await this.electronApp.evaluate(
+      (_electron, { method, response }) => {
+        const mocks = (globalThis as any).__kamoxMocks;
+        if (!mocks) throw new Error('KamoX hook not loaded');
+        mocks.setDialogMock(method, response);
+      },
+      { method, response }
+    );
+    this.dialogMockRegistry[method] = response;
+    this.logger.log('info', `Dialog mock set: ${method}`, 'system');
+  }
+
+  async clearDialogMock(method: string): Promise<void> {
+    if (!this.electronApp) throw new Error('Electron app not running');
+    await this.electronApp.evaluate(
+      (_electron, { method }) => {
+        const mocks = (globalThis as any).__kamoxMocks;
+        if (mocks) mocks.clearDialogMock(method);
+      },
+      { method }
+    );
+    delete this.dialogMockRegistry[method];
+    this.logger.log('info', `Dialog mock cleared: ${method}`, 'system');
+  }
+
+  async clearAllDialogMocks(): Promise<void> {
+    if (!this.electronApp) throw new Error('Electron app not running');
+    await this.electronApp.evaluate(() => {
+      const mocks = (globalThis as any).__kamoxMocks;
+      if (mocks) mocks.clearAllDialogMocks();
+    });
+    this.dialogMockRegistry = {};
+    this.logger.log('info', 'All dialog mocks cleared', 'system');
+  }
+
+  // ========== 統合モック API ==========
+
+  getAllMocks(): { ipc: Record<string, any>; dialog: Record<string, any> } {
+    return {
+      ipc: { ...this.ipcMockRegistry },
+      dialog: { ...this.dialogMockRegistry }
+    };
+  }
+
+  async clearAllMocks(): Promise<void> {
+    if (!this.electronApp) throw new Error('Electron app not running');
+    await this.electronApp.evaluate(() => {
+      const mocks = (globalThis as any).__kamoxMocks;
+      if (mocks) mocks.clearAll();
+    });
+    this.ipcMockRegistry = {};
+    this.dialogMockRegistry = {};
+    this.logger.log('info', 'All mocks (IPC + dialog) cleared', 'system');
+  }
+
+  // ========== IPC スパイ API ==========
+
+  async startIPCSpy(): Promise<void> {
+    if (!this.electronApp) throw new Error('Electron app not running');
+    await this.electronApp.evaluate(() => {
+      const spy = (globalThis as any).__kamoxSpy;
+      if (!spy) throw new Error('KamoX hook not loaded');
+      spy.start();
+    });
+    this.spyActive = true;
+    this.logger.log('info', 'IPC spy started', 'system');
+  }
+
+  async stopIPCSpy(): Promise<void> {
+    if (!this.electronApp) throw new Error('Electron app not running');
+    await this.electronApp.evaluate(() => {
+      const spy = (globalThis as any).__kamoxSpy;
+      if (spy) spy.stop();
+    });
+    this.spyActive = false;
+    this.logger.log('info', 'IPC spy stopped', 'system');
+  }
+
+  getIPCSpyStatus(): { active: boolean } {
+    return { active: this.spyActive };
+  }
+
+  async getIPCSpyLogs(sinceId?: number): Promise<any[]> {
+    if (!this.electronApp) throw new Error('Electron app not running');
+    if (sinceId !== undefined) {
+      return await this.electronApp.evaluate(
+        (_electron, { sinceId }) => {
+          const spy = (globalThis as any).__kamoxSpy;
+          if (!spy) return [];
+          return spy.getLogsSince(sinceId);
+        },
+        { sinceId }
+      );
+    }
+    return await this.electronApp.evaluate(() => {
+      const spy = (globalThis as any).__kamoxSpy;
+      if (!spy) return [];
+      return spy.getLogs();
+    });
+  }
+
+  async clearIPCSpyLogs(): Promise<void> {
+    if (!this.electronApp) throw new Error('Electron app not running');
+    await this.electronApp.evaluate(() => {
+      const spy = (globalThis as any).__kamoxSpy;
+      if (spy) spy.clear();
+    });
+    this.logger.log('info', 'IPC spy logs cleared', 'system');
   }
 
   async executeScenario(scenarioName: string): Promise<ScenarioExecutionResult> {
