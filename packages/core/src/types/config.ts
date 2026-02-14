@@ -3,6 +3,7 @@ export interface KamoxConfig {
   output?: string;
   buildCommand?: string;
   port?: number;
+  entryPoint?: string;
   
   chrome?: {
     testUrls?: string[];

@@ -84,6 +84,7 @@ export interface ServerStatus {
 }
 
 // Playwright API types
+// windowIndex / windowTitle は Electron マルチウィンドウ対応用（Chrome では無視される）
 export interface PlaywrightMouseRequest {
   action: 'click' | 'move' | 'down' | 'up' | 'drag';
   x: number;
@@ -92,19 +93,26 @@ export interface PlaywrightMouseRequest {
   clickCount?: number;
   toX?: number;
   toY?: number;
+  windowIndex?: number;
+  windowTitle?: string;
 }
 
 export interface PlaywrightKeyboardRequest {
   action: 'type' | 'press';
   text?: string;
   key?: string;
+  windowIndex?: number;
+  windowTitle?: string;
 }
 
 export interface PlaywrightElementRequest {
   selector: string;
-  action: 'click' | 'fill' | 'select' | 'check' | 'uncheck';
+  action: 'click' | 'fill' | 'select' | 'check' | 'uncheck' | 'textContent' | 'innerHTML' | 'isVisible' | 'getAttribute';
   value?: string;
+  attribute?: string;
   timeout?: number;
+  windowIndex?: number;
+  windowTitle?: string;
 }
 
 export interface PlaywrightWaitRequest {
@@ -112,11 +120,15 @@ export interface PlaywrightWaitRequest {
   selector?: string;
   duration?: number;
   timeout?: number;
+  windowIndex?: number;
+  windowTitle?: string;
 }
 
 export interface PlaywrightReloadRequest {
   waitUntil?: 'load' | 'domcontentloaded' | 'networkidle';
   timeout?: number;
+  windowIndex?: number;
+  windowTitle?: string;
 }
 
 export interface PlaywrightActionResult {

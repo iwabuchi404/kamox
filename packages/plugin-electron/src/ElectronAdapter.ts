@@ -17,6 +17,7 @@ import { ScenarioLoader } from '@kamox/core/dist/utils/scenarioLoader.js';
 import { _electron as electron, ElectronApplication, Page, BrowserContext } from 'playwright';
 import path from 'path';
 import fs from 'fs';
+import { createRequire } from 'module';
 
 export class ElectronAdapter extends BaseDevServer {
   private electronApp: ElectronApplication | null = null;
@@ -69,11 +70,24 @@ export class ElectronAdapter extends BaseDevServer {
 
     const launchArgs = hasHook ? ['-r', hookPath, mainPath] : [mainPath];
 
+    // グローバルインストール時、Playwright は require('electron') でバイナリを見つけられない。
+    // ユーザーのプロジェクト配下の electron パッケージを起点に解決し、executablePath として渡す。
+    let executablePath: string | undefined;
+    try {
+      const projectRequire = createRequire(path.join(projectPath, 'package.json'));
+      executablePath = projectRequire('electron') as string;
+      this.logger.log('info', `Electron binary resolved: ${executablePath}`, 'system');
+    } catch {
+      // フォールバック: Playwright のデフォルト解決に任せる（ローカルインストール時はこちらで動く）
+      this.logger.log('info', 'Electron binary not found in project, falling back to Playwright default resolution', 'system');
+    }
+
     try {
       this.electronApp = await electron.launch({
         args: launchArgs,
         cwd: projectPath,
-        env: launchEnv
+        env: launchEnv,
+        ...(executablePath ? { executablePath } : {})
       });
     } catch (e: any) {
       this.logger.log('error', `Failed to launch Electron: ${e.message}`, 'system');
@@ -237,7 +251,7 @@ export class ElectronAdapter extends BaseDevServer {
   async performMouseAction(request: PlaywrightMouseRequest): Promise<PlaywrightActionResult> {
     if (!this.electronApp) return { success: false, error: 'App not running' };
     try {
-      const page = await this.getWindow();
+      const page = await this.getWindow(request.windowIndex, request.windowTitle);
       const button = request.button || 'left';
       const clickCount = request.clickCount || 1;
 
@@ -264,7 +278,7 @@ export class ElectronAdapter extends BaseDevServer {
           await page.mouse.up({ button });
           break;
       }
-      return { success: true };
+      return { success: true, data: { action: request.action, position: { x: request.x, y: request.y } } };
     } catch (e: any) {
       return { success: false, error: e.message };
     }
@@ -273,7 +287,7 @@ export class ElectronAdapter extends BaseDevServer {
   async performKeyboardAction(request: PlaywrightKeyboardRequest): Promise<PlaywrightActionResult> {
     if (!this.electronApp) return { success: false, error: 'App not running' };
     try {
-      const page = await this.getWindow();
+      const page = await this.getWindow(request.windowIndex, request.windowTitle);
       switch (request.action) {
         case 'type':
           if (!request.text) throw new Error('text is required');
@@ -284,7 +298,7 @@ export class ElectronAdapter extends BaseDevServer {
           await page.keyboard.press(request.key);
           break;
       }
-      return { success: true };
+      return { success: true, data: { action: request.action, text: request.text, key: request.key } };
     } catch (e: any) {
       return { success: false, error: e.message };
     }
@@ -293,11 +307,12 @@ export class ElectronAdapter extends BaseDevServer {
   async performElementAction(request: PlaywrightElementRequest): Promise<PlaywrightActionResult> {
     if (!this.electronApp) return { success: false, error: 'App not running' };
     try {
-      const page = await this.getWindow();
+      const page = await this.getWindow(request.windowIndex, request.windowTitle);
       const element = page.locator(request.selector);
       const timeout = request.timeout || 5000;
 
       switch (request.action) {
+        // 書き込み系アクション
         case 'click':
           await element.click({ timeout });
           break;
@@ -315,8 +330,26 @@ export class ElectronAdapter extends BaseDevServer {
         case 'uncheck':
           await element.uncheck({ timeout });
           break;
+        // 読み取り系アクション
+        case 'textContent': {
+          const text = await element.textContent({ timeout });
+          return { success: true, data: { selector: request.selector, action: request.action, result: text } };
+        }
+        case 'innerHTML': {
+          const html = await element.innerHTML({ timeout });
+          return { success: true, data: { selector: request.selector, action: request.action, result: html } };
+        }
+        case 'isVisible': {
+          const visible = await element.isVisible();
+          return { success: true, data: { selector: request.selector, action: request.action, result: visible } };
+        }
+        case 'getAttribute': {
+          if (!request.attribute) throw new Error('attribute is required for getAttribute');
+          const attr = await element.getAttribute(request.attribute, { timeout });
+          return { success: true, data: { selector: request.selector, action: request.action, attribute: request.attribute, result: attr } };
+        }
       }
-      return { success: true };
+      return { success: true, data: { selector: request.selector, action: request.action } };
     } catch (e: any) {
       return { success: false, error: e.message };
     }
@@ -325,7 +358,7 @@ export class ElectronAdapter extends BaseDevServer {
   async performWait(request: PlaywrightWaitRequest): Promise<PlaywrightActionResult> {
     if (!this.electronApp) return { success: false, error: 'App not running' };
     try {
-      const page = await this.getWindow();
+      const page = await this.getWindow(request.windowIndex, request.windowTitle);
       switch (request.type) {
         case 'selector':
           if (!request.selector) throw new Error('selector is required');
@@ -339,7 +372,7 @@ export class ElectronAdapter extends BaseDevServer {
           await page.waitForLoadState('networkidle', { timeout: request.timeout || 30000 });
           break;
       }
-      return { success: true };
+      return { success: true, data: { type: request.type } };
     } catch (e: any) {
       return { success: false, error: e.message };
     }
@@ -348,12 +381,12 @@ export class ElectronAdapter extends BaseDevServer {
   async performReload(request: PlaywrightReloadRequest): Promise<PlaywrightActionResult> {
     if (!this.electronApp) return { success: false, error: 'App not running' };
     try {
-      const page = await this.getWindow();
-      await page.reload({ 
-        waitUntil: request.waitUntil || 'load', 
-        timeout: request.timeout || 30000 
+      const page = await this.getWindow(request.windowIndex, request.windowTitle);
+      await page.reload({
+        waitUntil: request.waitUntil || 'load',
+        timeout: request.timeout || 30000
       });
-      return { success: true };
+      return { success: true, data: { reloaded: true, waitUntil: request.waitUntil || 'load' } };
     } catch (e: any) {
       return { success: false, error: e.message };
     }

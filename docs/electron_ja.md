@@ -9,7 +9,7 @@ KamoX は、**Electron アプリケーション** のための強力な開発お
 - 📡 **IPC 監視**: メインプロセスとレンダラープロセス間の通信をキャプチャしてログ表示。
 - 🎭 **IPC / ダイアログモック**: アプリコードを変更せずに `ipcMain.handle` のレスポンスやネイティブダイアログ（`showOpenDialog` 等）をモック可能。
 - 🔍 **IPC スパイ**: 双方向の IPC 通信キャプチャ（Renderer→Main / Main→Renderer）。フィルタリングと差分取得に対応。
-- 🖱️ **Playwright 統合**: Playwright API を使用して、ウィンドウに対するクリック、入力などの操作をフルコントロール。
+- 🖱️ **Playwright 統合**: Playwright API を使用して、ウィンドウに対するクリック、入力、要素読み取りなどの操作をウィンドウ指定付きでフルコントロール。
 - 🛠️ **統合ログ**: メインプロセスの `stdout/stderr` と、全レンダラーの `console` ログを統合表示。
 - 🧪 **シナリオテスト**: 複雑なアプリ状態を再現するための自動操作フローを定義可能。
 
@@ -61,18 +61,34 @@ KamoX 起動後、`http://localhost:3000` にアクセスしてダッシュボ�
 
 AI エージェントは、HTTP API を通じて Electron アプリを操作できます。
 
-**例: ログインフォームに入力する**
+#### ログインフォームに入力する（ウィンドウ指定あり）
+
 ```bash
 curl -X POST http://localhost:3000/playwright/element \
   -H "Content-Type: application/json" \
   -d '{
     "selector": "#username",
     "action": "fill",
-    "value": "developer"
+    "value": "developer",
+    "windowIndex": 1
   }'
 ```
 
-**例: 特定のウィンドウの UI をチェックする**
+#### 要素のテキストを取得する
+
+```bash
+curl -X POST http://localhost:3000/playwright/element \
+  -H "Content-Type: application/json" \
+  -d '{
+    "selector": "h1",
+    "action": "textContent",
+    "windowIndex": 1
+  }'
+# → { "success": true, "data": { "selector": "h1", "action": "textContent", "result": "My App" } }
+```
+
+#### 特定のウィンドウの UI をチェックする
+
 ```bash
 curl -X POST http://localhost:3000/check-ui \
   -H "Content-Type: application/json" \
@@ -80,6 +96,27 @@ curl -X POST http://localhost:3000/check-ui \
     "windowIndex": 1
   }'
 ```
+
+### ウィンドウ指定
+
+すべての Playwright エンドポイント（`/playwright/mouse`, `/playwright/keyboard`, `/playwright/element`, `/playwright/wait`, `/playwright/reload`）は、`windowIndex` と `windowTitle` パラメータをサポートしています。Electron アプリでは DevTools が `windowIndex: 0` になることがあるため、アプリウィンドウを明示的に指定することが重要です。
+
+### 要素読み取りアクション
+
+書き込み系アクション（`click`, `fill`, `select`, `check`, `uncheck`）に加えて、`/playwright/element` エンドポイントは読み取り系アクションをサポートしています：
+
+| Action         | 説明                   | 追加パラメータ        | 戻り値           |
+| -------------- | ---------------------- | --------------------- | ---------------- |
+| `textContent`  | 要素のテキストを取得   | -                     | `string \| null` |
+| `innerHTML`    | 要素の内部 HTML を取得 | -                     | `string`         |
+| `isVisible`    | 表示状態を確認         | -                     | `boolean`        |
+| `getAttribute` | 属性値を取得           | `attribute`（必須）   | `string \| null` |
+
+読み取り結果は `data.result` に格納されます。
+
+### AI ガイド
+
+`kamox guide --mode electron` を実行すると、AI エージェント向けに最適化された API リファレンスを確認できます。
 
 ## IPC / ダイアログモック
 

@@ -5,6 +5,7 @@ import { ChromeExtensionAdapter } from '@kamox/plugin-chrome/dist/ChromeExtensio
 import { ElectronAdapter } from '@kamox/plugin-electron/dist/ElectronAdapter.js';
 import { ConfigLoader } from '@kamox/core/dist/utils/ConfigLoader.js';
 import { ProjectDetector } from '@kamox/core/dist/utils/ProjectDetector.js';
+import { generateGuide } from './guide.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -173,11 +174,12 @@ program
       const { config, source } = loader.load({
         mode: 'electron',
         port: options.port ? parseInt(options.port) : undefined,
+        entryPoint: options.entryPoint,
         configPath: options.config
       });
 
       const port = config.port || parseInt(options.port);
-      const entryPoint = options.entryPoint || config.entryPoint || 'main.js';
+      const entryPoint = config.entryPoint || 'main.js';
       const mainPath = path.resolve(cwd, entryPoint);
 
       console.log(`KamoX v${packageJson.version}`);
@@ -276,5 +278,18 @@ program
     }
     console.log('');
   });
+
+program
+  .command('guide')
+  .description('Show API reference for AI agents and developers')
+  .option('--mode <mode>', 'Filter by mode: chrome, electron (default: all)')
+  .action((options) => {
+    const mode = options.mode || 'all'
+    if (!['chrome', 'electron', 'all'].includes(mode)) {
+      console.error(`Invalid mode: ${mode}. Use chrome, electron, or all.`)
+      process.exit(1)
+    }
+    console.log(generateGuide(mode))
+  })
 
 program.parse();

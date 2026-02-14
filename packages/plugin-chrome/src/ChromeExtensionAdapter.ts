@@ -827,6 +827,7 @@ export class ChromeExtensionAdapter extends BaseDevServer {
       const element = page.locator(request.selector);
 
       switch (request.action) {
+        // 書き込み系アクション
         case 'click':
           await element.click({ timeout });
           break;
@@ -854,6 +855,26 @@ export class ChromeExtensionAdapter extends BaseDevServer {
         case 'uncheck':
           await element.uncheck({ timeout });
           break;
+        // 読み取り系アクション
+        case 'textContent': {
+          const text = await element.textContent({ timeout });
+          return { success: true, data: { selector: request.selector, action: request.action, result: text } };
+        }
+        case 'innerHTML': {
+          const html = await element.innerHTML({ timeout });
+          return { success: true, data: { selector: request.selector, action: request.action, result: html } };
+        }
+        case 'isVisible': {
+          const visible = await element.isVisible();
+          return { success: true, data: { selector: request.selector, action: request.action, result: visible } };
+        }
+        case 'getAttribute': {
+          if (!request.attribute) {
+            return { success: false, error: 'attribute is required for getAttribute action' };
+          }
+          const attr = await element.getAttribute(request.attribute, { timeout });
+          return { success: true, data: { selector: request.selector, action: request.action, attribute: request.attribute, result: attr } };
+        }
         default:
           return {
             success: false,

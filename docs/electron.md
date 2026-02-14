@@ -9,7 +9,7 @@ KamoX provide a powerful development and automation server for **Electron applic
 - 📡 **IPC Monitoring**: Captures and logs messages between Main and Renderer processes.
 - 🎭 **IPC / Dialog Mocking**: Mock `ipcMain.handle` responses and native dialogs (`showOpenDialog`, etc.) without modifying your app code.
 - 🔍 **IPC Spy**: Bidirectional IPC communication capture (Renderer→Main and Main→Renderer) with filtering and incremental retrieval.
-- 🖱️ **Playwright Integration**: Full control over windows using Playwright APIs (Click, Type, etc.).
+- 🖱️ **Playwright Integration**: Full control over windows using Playwright APIs (Click, Type, Read, etc.) with per-window targeting.
 - 🛠️ **Unified Logging**: Consolidates `stdout/stderr` from the Main process and `console` logs from all Renderers.
 - 🧪 **Scenario Testing**: Define automated setup flows to test complex application states.
 
@@ -61,18 +61,34 @@ Once KamoX is running, visit `http://localhost:3000` to access the dashboard.
 
 AI agents can interact with your Electron app via HTTP API.
 
-**Example: Fill a login form**
+#### Fill a login form (targeting a specific window)
+
 ```bash
 curl -X POST http://localhost:3000/playwright/element \
   -H "Content-Type: application/json" \
   -d '{
     "selector": "#username",
     "action": "fill",
-    "value": "developer"
+    "value": "developer",
+    "windowIndex": 1
   }'
 ```
 
-**Example: Check UI of a specific window**
+#### Read element text
+
+```bash
+curl -X POST http://localhost:3000/playwright/element \
+  -H "Content-Type: application/json" \
+  -d '{
+    "selector": "h1",
+    "action": "textContent",
+    "windowIndex": 1
+  }'
+# → { "success": true, "data": { "selector": "h1", "action": "textContent", "result": "My App" } }
+```
+
+#### Check UI of a specific window
+
 ```bash
 curl -X POST http://localhost:3000/check-ui \
   -H "Content-Type: application/json" \
@@ -80,6 +96,27 @@ curl -X POST http://localhost:3000/check-ui \
     "windowIndex": 1
   }'
 ```
+
+### Window Targeting
+
+All Playwright endpoints (`/playwright/mouse`, `/playwright/keyboard`, `/playwright/element`, `/playwright/wait`, `/playwright/reload`) accept optional `windowIndex` and `windowTitle` parameters to target a specific window. This is essential for Electron apps where DevTools may open as `windowIndex: 0`.
+
+### Element Read Actions
+
+In addition to write actions (`click`, `fill`, `select`, `check`, `uncheck`), the `/playwright/element` endpoint supports read actions:
+
+| Action         | Description            | Extra Params           | Result           |
+| -------------- | ---------------------- | ---------------------- | ---------------- |
+| `textContent`  | Get element text       | -                      | `string \| null` |
+| `innerHTML`    | Get element inner HTML | -                      | `string`         |
+| `isVisible`    | Check visibility       | -                      | `boolean`        |
+| `getAttribute` | Get attribute value    | `attribute` (required) | `string \| null` |
+
+Read actions return the value in `data.result`.
+
+### AI Guide
+
+Run `kamox guide --mode electron` to get a complete API reference optimized for AI agent consumption.
 
 ## IPC / Dialog Mocking
 
