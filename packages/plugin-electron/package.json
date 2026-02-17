@@ -1,6 +1,6 @@
 {
     "name": "@kamox/plugin-electron",
-    "version": "0.1.8",
+    "version": "0.1.9",
     "description": "Electron adapter for KamoX using Playwright - Automated testing and live preview for Electron applications",
     "keywords": [
         "electron",

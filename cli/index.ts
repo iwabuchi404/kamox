@@ -163,9 +163,11 @@ program
 program
   .command('electron')
   .description('Start dev server for Electron application')
-  .option('-p, --port <number>', 'Server port', '3000')
-  .option('-e, --entry-point <path>', 'Main entry point file', 'main.js')
+  .option('-p, --port <number>', 'Server port')
+  .option('-e, --entry-point <path>', 'Main entry point file')
   .option('-c, --config <path>', 'Path to config file')
+  .option('--electron-path <path>', 'Path to Electron executable')
+  .option('--verbose', 'Show detailed configuration and logs')
   .action(async (options) => {
     try {
       const cwd = process.cwd();
@@ -175,10 +177,11 @@ program
         mode: 'electron',
         port: options.port ? parseInt(options.port) : undefined,
         entryPoint: options.entryPoint,
+        electronPath: options.electronPath,
         configPath: options.config
       });
 
-      const port = config.port || parseInt(options.port);
+      const port = config.port;
       const entryPoint = config.entryPoint || 'main.js';
       const mainPath = path.resolve(cwd, entryPoint);
 
@@ -188,7 +191,14 @@ program
       console.log(`Entry:    ${entryPoint}`);
       console.log(`Config:   ${source}`);
       console.log(`Port:     ${port}`);
-      console.log('')
+
+      if (options.verbose) {
+        console.log('Detailed Config:');
+        console.log(`  ├─ entryPoint:   ${config.entryPoint || '(default)'} [${options.entryPoint ? 'CLI' : 'File/Default'}]`);
+        console.log(`  ├─ electronPath: ${config.electronPath || '(auto-detect)'} [${options.electronPath ? 'CLI' : 'File/Auto'}]`);
+        console.log(`  └─ port:         ${config.port} [${options.port ? 'CLI' : 'File/Default'}]`);
+      }
+      console.log('');
 
       if (!fs.existsSync(mainPath)) {
         console.error(`Entry point not found: ${mainPath}`)
@@ -202,6 +212,7 @@ program
       const adapterConfig = {
         projectPath: cwd,
         entryPoint,
+        electronPath: config.electronPath,
         environment: 'electron',
       }
 

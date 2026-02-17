@@ -49,6 +49,7 @@ export class ConfigLoader {
       buildCommand: cliOptions.buildCommand || fileConfig.buildCommand || 'npm run build',
       port: cliOptions.port || fileConfig.port || 3000,
       entryPoint: cliOptions.entryPoint || fileConfig.entryPoint,
+      electronPath: cliOptions.electronPath || fileConfig.electronPath,
       
       chrome: {
         ...fileConfig.chrome,

@@ -14,6 +14,7 @@ import {
   PlaywrightElementRequest,
   PlaywrightWaitRequest,
   PlaywrightReloadRequest,
+  PlaywrightEvaluateRequest,
   PlaywrightActionResult
 } from './types/common.js';
 import { IDevServer } from './types/plugin.js';
@@ -62,6 +63,7 @@ export abstract class BaseDevServer implements IDevServer {
   abstract performElementAction(request: PlaywrightElementRequest): Promise<PlaywrightActionResult>;
   abstract performWait(request: PlaywrightWaitRequest): Promise<PlaywrightActionResult>;
   abstract performReload(request: PlaywrightReloadRequest): Promise<PlaywrightActionResult>;
+  abstract performEvaluate(request: PlaywrightEvaluateRequest): Promise<PlaywrightActionResult>;
   
   // 共通メソッド
   async rebuild(): Promise<RebuildResult> {

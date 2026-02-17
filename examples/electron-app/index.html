@@ -47,6 +47,8 @@
 
     <div style="margin-top: 1rem;">
         <button id="settingsBtn" style="padding: 0.5rem;">Open Settings Window</button>
+        <button id="dialogBtn" style="padding: 0.5rem; background-color: #4CAF50; color: white;">Select File</button>
+        <button id="greetBtn" style="padding: 0.5rem; background-color: #2196F3; color: white;">Greet</button>
     </div>
 
     <div class="status" id="status">Ready</div>
@@ -66,10 +68,18 @@
             ipcRenderer.send('open-settings');
         });
 
-        setInterval(() => {
-            const status = document.getElementById('status');
-            status.innerText = `Running: ${new Date().toLocaleTimeString()}`;
-        }, 3000);
+        document.getElementById('dialogBtn').addEventListener('click', async () => {
+            console.log('Opening dialog...');
+            const result = await ipcRenderer.invoke('open-dialog', { title: 'Select File Test' });
+            document.getElementById('status').innerText = `Selected: ${JSON.stringify(result)}`;
+        });
+
+        document.getElementById('greetBtn').addEventListener('click', async () => {
+            console.log('Greeting...');
+            const result = await ipcRenderer.invoke('greet', 'KamoX User');
+            document.getElementById('status').innerText = `Response: ${result}`;
+        });
+
     </script>
 </body>
 

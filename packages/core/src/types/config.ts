@@ -4,6 +4,7 @@ export interface KamoxConfig {
   buildCommand?: string;
   port?: number;
   entryPoint?: string;
+  electronPath?: string;
   
   chrome?: {
     testUrls?: string[];

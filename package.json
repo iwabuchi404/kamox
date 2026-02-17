@@ -1,6 +1,6 @@
 {
   "name": "kamox-monorepo",
-  "version": "0.1.2",
+  "version": "0.1.9",
   "private": true,
   "description": "Web Extension Dev Server",
   "workspaces": [

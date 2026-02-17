@@ -131,6 +131,13 @@ export interface PlaywrightReloadRequest {
   windowTitle?: string;
 }
 
+export interface PlaywrightEvaluateRequest {
+  script: string;
+  arg?: any;
+  windowIndex?: number;
+  windowTitle?: string;
+}
+
 export interface PlaywrightActionResult {
   success: boolean;
   data?: any;

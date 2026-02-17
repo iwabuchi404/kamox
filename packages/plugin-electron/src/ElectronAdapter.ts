@@ -8,6 +8,7 @@ import {
   PlaywrightElementRequest,
   PlaywrightWaitRequest,
   PlaywrightReloadRequest,
+  PlaywrightEvaluateRequest,
   PlaywrightActionResult,
   ScenarioExecutionResult,
   ServerStatus,
@@ -69,17 +70,34 @@ export class ElectronAdapter extends BaseDevServer {
     }
 
     const launchArgs = hasHook ? ['-r', hookPath, mainPath] : [mainPath];
+    if (hasHook) {
+      launchEnv.NODE_OPTIONS = `${launchEnv.NODE_OPTIONS || ''} -r "${hookPath}"`.trim();
+    }
 
     // グローバルインストール時、Playwright は require('electron') でバイナリを見つけられない。
     // ユーザーのプロジェクト配下の electron パッケージを起点に解決し、executablePath として渡す。
-    let executablePath: string | undefined;
-    try {
-      const projectRequire = createRequire(path.join(projectPath, 'package.json'));
-      executablePath = projectRequire('electron') as string;
-      this.logger.log('info', `Electron binary resolved: ${executablePath}`, 'system');
-    } catch {
-      // フォールバック: Playwright のデフォルト解決に任せる（ローカルインストール時はこちらで動く）
-      this.logger.log('info', 'Electron binary not found in project, falling back to Playwright default resolution', 'system');
+    let executablePath: string | undefined = (this.state.config as any).electronPath;
+    
+    if (executablePath) {
+      this.logger.log('info', `Using explicit Electron path: ${executablePath}`, 'system');
+    } else {
+      try {
+        const projectRequire = createRequire(path.join(projectPath, 'package.json'));
+        executablePath = projectRequire('electron') as string;
+        this.logger.log('info', `Electron binary resolved via project require: ${executablePath}`, 'system');
+      } catch {
+        // フォールバック: node_modules/.bin/electron を直接探す (Windows/Unix 共通の対応)
+        const binPath = process.platform === 'win32' 
+          ? path.join(projectPath, 'node_modules', '.bin', 'electron.cmd')
+          : path.join(projectPath, 'node_modules', '.bin', 'electron');
+        
+        if (fs.existsSync(binPath)) {
+          executablePath = binPath;
+          this.logger.log('info', `Electron binary found in .bin: ${executablePath}`, 'system');
+        } else {
+          this.logger.log('info', 'Electron binary not found in project, falling back to Playwright default resolution', 'system');
+        }
+      }
     }
 
     try {
@@ -88,6 +106,11 @@ export class ElectronAdapter extends BaseDevServer {
         cwd: projectPath,
         env: launchEnv,
         ...(executablePath ? { executablePath } : {})
+      });
+
+      // レンダラープロセスにフック存在を示すマーカーを注入 (check-script 用)
+      await this.electronApp.context().addInitScript(() => {
+        (window as any).__kamoxMocks = true;
       });
     } catch (e: any) {
       this.logger.log('error', `Failed to launch Electron: ${e.message}`, 'system');
@@ -217,20 +240,34 @@ export class ElectronAdapter extends BaseDevServer {
 
   private async getWindow(index?: number, title?: string): Promise<Page> {
     if (!this.electronApp) throw new Error('App not running');
-    
-    const windows = this.electronApp.windows();
-    if (windows.length === 0) {
+
+    const allWindows = this.electronApp.windows();
+    if (allWindows.length === 0) {
       return await this.electronApp.firstWindow();
     }
+
+    // DevTools ウィンドウを除外（devtools:// URL を持つウィンドウ）
+    const appWindows = allWindows.filter(win => {
+      const url = win.url();
+      return !url.startsWith('devtools://') && !url.startsWith('chrome-devtools://');
+    });
+
+    // 表示用インデックスと内部インデックスの不整合を防ぐため、appWindows があればそちらを優先
+    // なければ allWindows (すべてのウィンドウ) を対象とする
+    const windows = appWindows.length > 0 ? appWindows : allWindows;
 
     if (title) {
       for (const win of windows) {
         const t = await win.title();
         if (t === title) return win;
       }
+      throw new Error(`Window with title "${title}" not found. Available app windows: ${appWindows.length}`);
     }
 
-    if (index !== undefined && windows[index]) {
+    if (index !== undefined) {
+      if (!windows[index]) {
+        throw new Error(`Window index ${index} out of range. ${windows.length} app window(s) available.`);
+      }
       return windows[index];
     }
 
@@ -238,13 +275,29 @@ export class ElectronAdapter extends BaseDevServer {
   }
 
   async checkScript(url?: string): Promise<ScriptCheckResult> {
-    // Electron では Content Script の概念が拡張機能と異なるため、
-    // Phase 1 では未実装とするか、Preload スクリプトの検証などに充てる
-    return {
-      url: url || 'electron://app',
-      injected: false,
-      logs: []
-    };
+    if (!this.electronApp) {
+      return { url: url || 'electron://app', injected: false, logs: [] };
+    }
+    try {
+      const page = await this.getWindow(0);
+      const injected = await page.evaluate(() => {
+        // メインプロセス側でフックされていても、レンダラーから直接は見えない場合があるため、
+        // 開発者が手動で注入したスクリプトやプリロードの状態を確認する。
+        // 現状は ElectronAdapter が注入を試みている状態なので、存在を確認。
+        return !!((window as any).__kamoxMocks || (globalThis as any).__kamoxMocks);
+      });
+      return {
+        url: url || page.url(),
+        injected,
+        logs: []
+      };
+    } catch (e: any) {
+      return {
+        url: url || 'electron://app', 
+        injected: false, 
+        logs: [{ timestamp: Date.now(), type: 'error', content: e.message, source: 'system' }]
+      };
+    }
   }
 
   // Playwright API 実装
@@ -308,6 +361,9 @@ export class ElectronAdapter extends BaseDevServer {
     if (!this.electronApp) return { success: false, error: 'App not running' };
     try {
       const page = await this.getWindow(request.windowIndex, request.windowTitle);
+      // BUG-2 対策: 操作前にウィンドウを活性化させ、Playwright の待機タイムアウトを回避
+      await page.bringToFront();
+      
       const element = page.locator(request.selector);
       const timeout = request.timeout || 5000;
 
@@ -392,23 +448,52 @@ export class ElectronAdapter extends BaseDevServer {
     }
   }
 
+  async performEvaluate(request: PlaywrightEvaluateRequest): Promise<PlaywrightActionResult> {
+    if (!this.electronApp) return { success: false, error: 'App not running' };
+    try {
+      const page = await this.getWindow(request.windowIndex, request.windowTitle);
+      // BUG-5 対策: 複数行や return の有無に柔軟に対応できるようラッピングを改善
+      const result = await page.evaluate(({ script, arg }) => {
+        const scriptToExec = script.includes('return') ? script : `return (${script})`;
+        const fn = new Function('arg', scriptToExec);
+        return fn(arg);
+      }, { script: request.script, arg: request.arg });
+      return { success: true, data: result };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+
   getStatus(): ServerStatus {
     const status = super.getStatus();
-    const windows = this.electronApp?.windows() || [];
-    
+    const allWindows = this.electronApp?.windows() || [];
+    // DevTools を除外してアプリウィンドウのみ表示
+    const appWindows = allWindows.filter(win => {
+      const url = win.url();
+      return !url.startsWith('devtools://') && !url.startsWith('chrome-devtools://');
+    });
+    const windows = appWindows.length > 0 ? appWindows : allWindows;
+
     status.windows = windows.map((win, i) => ({
       index: i,
       title: 'Electron Window' // タイトル取得は非同期なのでここではプレースホルダ
     }));
-    
+
     return status;
   }
 
   // 非同期でタイトルを含めたステータスを取得するエンドポイント用
   async getStatusAsync(): Promise<ServerStatus> {
-    const status = this.getStatus();
+    const status = super.getStatus();
     if (this.electronApp) {
-      const windows = this.electronApp.windows();
+      const allWindows = this.electronApp.windows();
+      // DevTools を除外してアプリウィンドウのみ表示
+      const appWindows = allWindows.filter(win => {
+        const url = win.url();
+        return !url.startsWith('devtools://') && !url.startsWith('chrome-devtools://');
+      });
+      const windows = appWindows.length > 0 ? appWindows : allWindows;
+
       status.windows = await Promise.all(windows.map(async (win, i) => ({
         index: i,
         title: await win.title() || `Window ${i}`

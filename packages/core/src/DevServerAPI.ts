@@ -239,6 +239,26 @@ export class DevServerAPI {
       }
     });
 
+    this.app.post('/playwright/evaluate', async (req: Request, res: Response) => {
+      try {
+        const result = await this.adapter.performEvaluate(req.body);
+        res.json({
+          success: result.success,
+          timestamp: new Date().toISOString(),
+          environment: this.adapter.getEnvironment(),
+          data: result.data,
+          error: result.error
+        });
+      } catch (error: any) {
+        res.status(500).json({
+          success: false,
+          timestamp: new Date().toISOString(),
+          environment: this.adapter.getEnvironment(),
+          error: error.message
+        });
+      }
+    });
+
     this.app.post('/playwright/reload', async (req: Request, res: Response) => {
       try {
         const result = await this.adapter.performReload(req.body);

@@ -9,6 +9,7 @@ import {
   PlaywrightElementRequest,
   PlaywrightWaitRequest,
   PlaywrightReloadRequest,
+  PlaywrightEvaluateRequest,
   PlaywrightActionResult,
   ScenarioExecutionResult,
   LogEntry
@@ -964,40 +965,32 @@ export class ChromeExtensionAdapter extends BaseDevServer {
   }
 
   async performReload(request: PlaywrightReloadRequest): Promise<PlaywrightActionResult> {
-    if (!this.context) {
-      return {
-        success: false,
-        error: 'Browser context not initialized'
-      };
-    }
-
+    if (!this.context) return { success: false, error: 'Browser context not initialized' };
     try {
       const pages = this.context.pages();
-      if (pages.length === 0) {
-        return {
-          success: false,
-          error: 'No active pages found'
-        };
-      }
-
+      if (pages.length === 0) return { success: false, error: 'No active pages found' };
       const page = pages[0];
       const waitUntil = request.waitUntil || 'load';
-      const timeout = request.timeout || 30000;
-
-      await page.reload({ waitUntil, timeout });
-
-      return {
-        success: true,
-        data: {
-          reloaded: true,
-          waitUntil
-        }
-      };
+      await page.reload({ waitUntil, timeout: request.timeout || 30000 });
+      return { success: true, data: { reloaded: true, waitUntil } };
     } catch (error: any) {
-      return {
-        success: false,
-        error: error.message
-      };
+      return { success: false, error: error.message };
+    }
+  }
+
+  async performEvaluate(request: PlaywrightEvaluateRequest): Promise<PlaywrightActionResult> {
+    if (!this.context) return { success: false, error: 'Browser context not initialized' };
+    try {
+      const pages = this.context.pages();
+      if (pages.length === 0) return { success: false, error: 'No active pages found' };
+      const page = pages[0];
+      const result = await page.evaluate(({ script, arg }) => {
+        const fn = new Function('arg', `return ${script}`);
+        return fn(arg);
+      }, { script: request.script, arg: request.arg });
+      return { success: true, data: result };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
   }
 
