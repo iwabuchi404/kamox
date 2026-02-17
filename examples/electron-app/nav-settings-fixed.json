@@ -1,0 +1,4 @@
+{
+    "selector": ".settings-card a",
+    "action": "click"
+}

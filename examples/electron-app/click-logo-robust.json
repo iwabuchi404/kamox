@@ -1,0 +1,4 @@
+{
+    "selector": "button:has-text('ロゴを選択')",
+    "action": "click"
+}

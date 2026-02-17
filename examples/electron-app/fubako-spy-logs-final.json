@@ -1,0 +1,1 @@
+{"success":true,"timestamp":"2026-02-14T13:48:35.525Z","environment":"electron","data":{"logs":[{"id":1,"timestamp":1771076844073,"direction":"renderer-to-main","channel":"load-site-settings","method":"invoke","args":[]}],"count":1}}

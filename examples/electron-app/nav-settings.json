@@ -1,0 +1,4 @@
+{
+    "selector": "a[href='/settings']",
+    "action": "click"
+}

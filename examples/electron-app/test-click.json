@@ -1,0 +1,4 @@
+{
+    "selector": "#greetBtn",
+    "action": "click"
+}

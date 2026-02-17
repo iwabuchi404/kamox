@@ -1,0 +1,9 @@
+{
+    "method": "showOpenDialog",
+    "response": {
+        "filePaths": [
+            "/mock/path/from/enhanced/hook.txt"
+        ],
+        "canceled": false
+    }
+}

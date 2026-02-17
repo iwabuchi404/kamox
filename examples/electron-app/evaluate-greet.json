@@ -1,0 +1,3 @@
+{
+    "script": "require('electron').ipcRenderer.invoke('greet', 'KamoX User')"
+}

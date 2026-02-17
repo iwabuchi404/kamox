@@ -1,0 +1,9 @@
+{
+    "method": "showOpenDialog",
+    "response": {
+        "canceled": false,
+        "filePaths": [
+            "C:\\mock-file.txt"
+        ]
+    }
+}

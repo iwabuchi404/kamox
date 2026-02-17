@@ -1,0 +1,4 @@
+{
+    "selector": "//button[contains(text(), 'ロゴを選択')]",
+    "action": "click"
+}

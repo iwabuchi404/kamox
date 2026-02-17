@@ -1,0 +1,4 @@
+{
+    "selector": "#dialogBtn",
+    "action": "click"
+}
