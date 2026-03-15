@@ -34,6 +34,11 @@ export class ElectronAdapter extends BaseDevServer {
   // IPC スパイ状態
   private spyActive: boolean = false;
 
+  // クラッシュ自動復旧 (#2)
+  private isIntentionalClose: boolean = false;
+  private crashRecoveryAttempts: number = 0;
+  private static readonly MAX_CRASH_RECOVERY = 3;
+
   // バリデーション用の許可リスト
   private static readonly VALID_DIALOG_METHODS = [
     'showOpenDialog', 'showSaveDialog', 'showMessageBox',
@@ -108,9 +113,38 @@ export class ElectronAdapter extends BaseDevServer {
         ...(executablePath ? { executablePath } : {})
       });
 
-      // レンダラープロセスにフック存在を示すマーカーを注入 (check-script 用)
-      await this.electronApp.context().addInitScript(() => {
-        (window as any).__kamoxMocks = true;
+      // レンダラープロセスに renderer-spy.js を注入 (#3 check-script / ipcRenderer.send spy)
+      const rendererSpyPath = path.resolve(__dirname, 'renderer-spy.js');
+      if (fs.existsSync(rendererSpyPath)) {
+        const spyScript = fs.readFileSync(rendererSpyPath, 'utf8');
+        await this.electronApp.context().addInitScript(spyScript);
+        this.logger.log('info', 'Renderer spy script injected', 'system');
+      } else {
+        // renderer-spy.js がない場合はマーカーのみ注入
+        await this.electronApp.context().addInitScript(() => {
+          (window as any).__kamoxHookLoaded = true;
+        });
+      }
+
+      // クラッシュ自動復旧 (#2) - 予期しない close イベントを監視
+      this.electronApp.on('close', () => {
+        if (this.isIntentionalClose) return;
+        if (this.crashRecoveryAttempts >= ElectronAdapter.MAX_CRASH_RECOVERY) {
+          this.logger.log('error', `Electron crashed and max recovery attempts (${ElectronAdapter.MAX_CRASH_RECOVERY}) reached. Please restart manually via /rebuild.`, 'system');
+          this.electronApp = null;
+          return;
+        }
+        this.crashRecoveryAttempts++;
+        this.logger.log('warn', `Electron closed unexpectedly. Auto-recovering (attempt ${this.crashRecoveryAttempts}/${ElectronAdapter.MAX_CRASH_RECOVERY})...`, 'system');
+        this.electronApp = null;
+        // 少し待ってから再起動（リソース解放を待つ）
+        setTimeout(() => {
+          this.launch().then(() => {
+            this.logger.log('info', `Electron recovered successfully (attempt ${this.crashRecoveryAttempts})`, 'system');
+          }).catch((e: any) => {
+            this.logger.log('error', `Electron recovery failed: ${e.message}`, 'system');
+          });
+        }, 2000);
       });
     } catch (e: any) {
       this.logger.log('error', `Failed to launch Electron: ${e.message}`, 'system');
@@ -157,6 +191,10 @@ export class ElectronAdapter extends BaseDevServer {
   async reload(): Promise<void> {
     this.logger.log('info', 'Reloading Electron environment...', 'system');
 
+    // 意図的な close とマークしてクラッシュ復旧ループを防ぐ
+    this.isIntentionalClose = true;
+    this.crashRecoveryAttempts = 0; // 手動再起動でカウンタリセット
+
     // 再起動でメインプロセスがリセットされるため、ローカルレジストリもクリア
     this.ipcMockRegistry = {};
     this.dialogMockRegistry = {};
@@ -166,6 +204,7 @@ export class ElectronAdapter extends BaseDevServer {
       await this.electronApp.close();
     }
 
+    this.isIntentionalClose = false;
     await this.launch();
 
     this.buildCount++;
@@ -280,17 +319,19 @@ export class ElectronAdapter extends BaseDevServer {
     }
     try {
       const page = await this.getWindow(0);
-      const injected = await page.evaluate(() => {
-        // メインプロセス側でフックされていても、レンダラーから直接は見えない場合があるため、
-        // 開発者が手動で注入したスクリプトやプリロードの状態を確認する。
-        // 現状は ElectronAdapter が注入を試みている状態なので、存在を確認。
-        return !!((window as any).__kamoxMocks || (globalThis as any).__kamoxMocks);
+      const hooks = await page.evaluate(() => {
+        return {
+          hookLoaded: !!((window as any).__kamoxHookLoaded),
+          rendererSpy: !!((window as any).__kamoxRendererSpy)
+        };
       });
+      const injected = hooks.hookLoaded || hooks.rendererSpy;
       return {
         url: url || page.url(),
         injected,
-        logs: []
-      };
+        logs: [],
+        ...(injected ? { data: { hooks } } : {})
+      } as any;
     } catch (e: any) {
       return {
         url: url || 'electron://app', 
@@ -658,8 +699,11 @@ export class ElectronAdapter extends BaseDevServer {
 
   async getIPCSpyLogs(sinceId?: number): Promise<any[]> {
     if (!this.electronApp) throw new Error('Electron app not running');
+
+    // メインプロセス側のログ (electron-hook.js)
+    let mainLogs: any[];
     if (sinceId !== undefined) {
-      return await this.electronApp.evaluate(
+      mainLogs = await this.electronApp.evaluate(
         (_electron, { sinceId }) => {
           const spy = (globalThis as any).__kamoxSpy;
           if (!spy) return [];
@@ -667,12 +711,34 @@ export class ElectronAdapter extends BaseDevServer {
         },
         { sinceId }
       );
+    } else {
+      mainLogs = await this.electronApp.evaluate(() => {
+        const spy = (globalThis as any).__kamoxSpy;
+        if (!spy) return [];
+        return spy.getLogs();
+      });
     }
-    return await this.electronApp.evaluate(() => {
-      const spy = (globalThis as any).__kamoxSpy;
-      if (!spy) return [];
-      return spy.getLogs();
-    });
+
+    // レンダラー側のログ (renderer-spy.js) - ipcRenderer.send 等を追加
+    const rendererLogs: any[] = [];
+    try {
+      const allWindows = this.electronApp.windows();
+      const appWindows = allWindows.filter(win => {
+        const url = win.url();
+        return !url.startsWith('devtools://') && !url.startsWith('chrome-devtools://');
+      });
+      for (const win of (appWindows.length > 0 ? appWindows : allWindows)) {
+        const logs = await win.evaluate(({ sinceId }: { sinceId?: number }) => {
+          const spy = (window as any).__kamoxRendererSpy;
+          if (!spy) return [];
+          return sinceId !== undefined ? spy.getLogsSince(sinceId) : spy.getLogs();
+        }, { sinceId });
+        rendererLogs.push(...logs);
+      }
+    } catch { /* renderer spy なしでもエラーにしない */ }
+
+    // タイムスタンプでマージソート
+    return [...mainLogs, ...rendererLogs].sort((a, b) => a.timestamp - b.timestamp);
   }
 
   async clearIPCSpyLogs(): Promise<void> {
@@ -681,7 +747,17 @@ export class ElectronAdapter extends BaseDevServer {
       const spy = (globalThis as any).__kamoxSpy;
       if (spy) spy.clear();
     });
-    this.logger.log('info', 'IPC spy logs cleared', 'system');
+    // レンダラー側のスパイログも消去
+    try {
+      const allWindows = this.electronApp.windows();
+      for (const win of allWindows) {
+        await win.evaluate(() => {
+          const spy = (window as any).__kamoxRendererSpy;
+          if (spy) spy.clear();
+        }).catch(() => {});
+      }
+    } catch { /* エラーは無視 */ }
+    this.logger.log('info', 'IPC spy logs cleared (main + renderer)', 'system');
   }
 
   async executeScenario(scenarioName: string): Promise<ScenarioExecutionResult> {

@@ -37,36 +37,39 @@ In your `kamox.config.json`:
 ## Mock API Endpoints
 
 | Method | Endpoint | Description |
-|--------|----------|-------------|
+| --- | --- | --- |
 | POST | `/mock-ipc` | Set IPC mock response |
-| DELETE | `/mock-ipc?channel=<name>` | Clear IPC mock |
+| DELETE | `/mock-ipc?channel=<name>` | Clear IPC mock for channel (omit `channel` to clear all) |
 | POST | `/mock-dialog` | Set dialog mock response |
-| DELETE | `/mock-dialog?method=<name>` | Clear dialog mock |
-| GET | `/mocks` | Get all active mocks |
-| DELETE | `/mocks` | Clear all mocks |
+| DELETE | `/mock-dialog?method=<name>` | Clear dialog mock for method (omit `method` to clear all) |
+| GET | `/mocks` | Get all active mocks (IPC + Dialog) |
+| DELETE | `/mocks` | Clear all mocks (IPC + Dialog) |
 
 ## IPC Spy API Endpoints
 
 | Method | Endpoint | Description |
-|--------|----------|-------------|
+| --- | --- | --- |
 | POST | `/ipc-spy/start` | Start capturing IPC messages |
 | POST | `/ipc-spy/stop` | Stop capturing |
 | GET | `/ipc-spy/status` | Get spy status |
-| GET | `/ipc-spy/logs?since=<id>` | Get captured logs (incremental) |
-| DELETE | `/ipc-spy/logs` | Clear captured logs |
+| GET | `/ipc-spy/logs?since=<id>` | Get captured logs since ID (exclusive: returns entries with `id > since`) |
+| DELETE | `/ipc-spy/logs` | Clear captured logs and reset ID counter to 0 |
+
+> **Note on `since`**: The parameter is exclusive. `?since=5` returns entries with ID 6 and above.
+> After `DELETE /ipc-spy/logs`, the ID counter resets to 0. Reset your local `since` value accordingly when doing incremental fetches.
 
 ## Playwright Element Actions
 
-| Action         | Type  | Description          | Extra Params           |
-| -------------- | ----- | -------------------- | ---------------------- |
-| `click`        | Write | Click element        | -                      |
-| `fill`         | Write | Fill input           | `value` (required)     |
-| `select`       | Write | Select option        | `value` (required)     |
-| `check`        | Write | Check checkbox       | -                      |
-| `uncheck`      | Write | Uncheck checkbox     | -                      |
-| `textContent`  | Read  | Get element text     | -                      |
-| `innerHTML`    | Read  | Get inner HTML       | -                      |
-| `isVisible`    | Read  | Check visibility     | -                      |
-| `getAttribute` | Read  | Get attribute value  | `attribute` (required) |
+| Action | Type | Description | Extra Params |
+| --- | --- | --- | --- |
+| `click` | Write | Click element | — |
+| `fill` | Write | Fill input | `value` (required) |
+| `select` | Write | Select option | `value` (required) |
+| `check` | Write | Check checkbox | — |
+| `uncheck` | Write | Uncheck checkbox | — |
+| `textContent` | Read | Get element text | — |
+| `innerHTML` | Read | Get inner HTML | — |
+| `isVisible` | Read | Check visibility | — |
+| `getAttribute` | Read | Get attribute value | `attribute` (required) |
 
 For detailed documentation, see the [official Electron guide](https://github.com/iwabuchi404/kamox/blob/main/docs/electron.md).

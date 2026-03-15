@@ -8,12 +8,14 @@
 **KamoX** is a plugin-based HTTP API server designed for **AI Coding Agents** (like Windsurf, Cursor, Devin) to live-preview, debug, and develop **Chrome Extensions** (Manifest V3), Electron apps, and VSCode extensions.
 
 It bridges the gap between AI agents and local development environments by providing a structured API for building, verifying UI, and retrieving logs.
+
 ```bash
 npm install -g kamox
 ```
 
 ## Quick Start
 
+```bash
 # Start KamoX server (with auto-build enabled)
 kamox chrome --auto-build
 ```
@@ -47,11 +49,12 @@ kamox chrome [options]
 ### Options
 
 | Option | Description | Default |
-|--------|-------------|---------|
+| --- | --- | --- |
 | `-p, --port <number>` | Server port number | `3000` |
 | `-o, --output <path>` | Build output directory | `dist` |
 | `-b, --build-command <cmd>` | Build command | `npm run build` |
 | `-c, --config <path>` | Config file path | `kamox.config.json` |
+| `--entryPoint <file>` | Electron main script (Electron mode only) | — |
 | `--verbose` | Show detailed logs and config | `false` |
 | `--auto-build` | Automatically build if output directory is missing | `false` |
 
@@ -66,6 +69,12 @@ Creating a `kamox.config.json` in your project root saves you from specifying op
   "buildCommand": "npm run build",
   "port": 3000
 }
+```
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
 | GET | `/status` | Check server status |
 | POST | `/rebuild` | Rebuild project |
 | GET | `/scenarios` | List available test scenarios |
@@ -83,14 +92,16 @@ Creating a `kamox.config.json` in your project root saves you from specifying op
 
 KamoX allows AI agents to interact with the extension using Playwright-compatible APIs.
 
-**Example: Click a button**
+#### Example: Click a button
+
 ```bash
 curl -X POST http://localhost:3000/playwright/element \
   -H "Content-Type: application/json" \
   -d '{"selector": "#submit-btn", "action": "click"}'
 ```
 
-**Example: Type text**
+#### Example: Type text
+
 ```bash
 curl -X POST http://localhost:3000/playwright/keyboard \
   -H "Content-Type: application/json" \
@@ -102,11 +113,13 @@ curl -X POST http://localhost:3000/playwright/keyboard \
 You can define reusable test scenarios in `.kamox/scenarios/*.scenario.js` to automate complex setup (e.g., opening specific tabs, setting storage) before verifying the UI.
 
 **List Scenarios:**
+
 ```bash
 curl http://localhost:3000/scenarios
 ```
 
 **Run Scenario & Check UI:**
+
 ```bash
 curl -X POST http://localhost:3000/check-ui \
   -H "Content-Type: application/json" \
@@ -115,7 +128,6 @@ curl -X POST http://localhost:3000/check-ui \
 
 For full reference on scenario file structure and API, see [**docs/scenarios.md**](docs/scenarios.md).
 
-
 ## Troubleshooting
 
 ### "Output directory not found" Error
@@ -123,6 +135,7 @@ For full reference on scenario file structure and API, see [**docs/scenarios.md*
 Occurs when the build output directory (default `dist`) is not found.
 
 **Solution:**
+
 1. Build your project: `npm run build`
 2. Or use `--auto-build` option
 3. Specify output directory with `--output` option if different
@@ -130,6 +143,7 @@ Occurs when the build output directory (default `dist`) is not found.
 ### Extension not loaded
 
 **Solution:**
+
 1. Check if `manifest.json` is included in the output directory
 2. Check error logs on the dashboard (`http://localhost:3000`)
 3. Run with `--verbose` option to see detailed logs

@@ -659,6 +659,7 @@ export class DevServerAPI {
       const logs = this.adapter.collectLogs();
       const environment = this.adapter.getEnvironment();
       const isElectron = environment === 'electron';
+      const isVSCode = environment === 'vscode';
       
       // エラーログの抽出
       const systemErrors = logs.runtime.filter((l: any) => l.type === 'error');
@@ -737,6 +738,7 @@ export class DevServerAPI {
       <button onclick="checkUI()" class="btn-secondary" title="Check UI and show screenshot">Check UI</button>
       ${!isElectron ? `<button onclick="wakeUpSW()" class="btn-secondary" title="Wake up Service Worker">Wake Up SW</button>` : ''}
       ${isElectron ? `<button onclick="rebuild()" class="btn-secondary" title="Restart Application">Restart App</button>` : ''}
+      ${isVSCode ? `<button onclick="rebuild()" class="btn-secondary" title="Reload Window">Reload Window</button>` : ''}
     </div>
 
     <div>
@@ -774,7 +776,7 @@ export class DevServerAPI {
       </div>
       ` : ''}
       <div style="margin-top: 20px;">
-        <button onclick="rebuild()" id="rebuildBtn">${isElectron ? 'Restart Application' : 'Rebuild & Reload'}</button>
+        <button onclick="rebuild()" id="rebuildBtn">${isVSCode ? 'Reload Window' : (isElectron ? 'Restart Application' : 'Rebuild & Reload')}</button>
       </div>
     </div>
  
@@ -802,7 +804,8 @@ export class DevServerAPI {
 
   <script>
     window.selectedWindow = 0;
-    window.ipcOnly = false;
+    window.isElectron = ${isElectron};
+    window.isVSCode = ${isVSCode};
     window.allLogs = { runtime: [], pages: {} };
 
     function renderLogs() {
@@ -842,7 +845,7 @@ export class DevServerAPI {
     async function rebuild() {
       const btn = document.getElementById('rebuildBtn');
       btn.disabled = true;
-      btn.textContent = '\${isElectron ? 'Restarting...' : 'Rebuilding...'}';
+      btn.textContent = window.isVSCode ? 'Reloading...' : (window.isElectron ? 'Restarting...' : 'Rebuilding...');
       
       try {
         const res = await fetch('/rebuild', { method: 'POST' });
@@ -852,12 +855,12 @@ export class DevServerAPI {
         } else {
           alert('Failed! Check logs.');
           btn.disabled = false;
-          btn.textContent = '\${isElectron ? 'Restart App' : 'Rebuild & Reload'}';
+          btn.textContent = window.isVSCode ? 'Reload Window' : (window.isElectron ? 'Restart App' : 'Rebuild & Reload');
         }
       } catch (e) {
         alert('Error: ' + e.message);
         btn.disabled = false;
-        btn.textContent = '\${isElectron ? 'Restart App' : 'Rebuild & Reload'}';
+        btn.textContent = window.isVSCode ? 'Reload Window' : (window.isElectron ? 'Restart App' : 'Rebuild & Reload');
       }
     }
  
