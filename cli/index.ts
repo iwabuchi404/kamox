@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { DevServerAPI } from '@kamox/core/dist/DevServerAPI.js';
 import { ChromeExtensionAdapter } from '@kamox/plugin-chrome/dist/ChromeExtensionAdapter.js';
 import { ElectronAdapter } from '@kamox/plugin-electron/dist/ElectronAdapter.js';
+import { VSCodeAdapter } from '@kamox/plugin-vscode/dist/VSCodeAdapter.js';
 import { ConfigLoader } from '@kamox/core/dist/utils/ConfigLoader.js';
 import { ProjectDetector } from '@kamox/core/dist/utils/ProjectDetector.js';
 import { generateGuide } from './guide.js';
@@ -243,6 +244,80 @@ program
         console.error('')
       }
 
+      process.exit(1)
+    }
+  })
+
+program
+  .command('vscode')
+  .description('Start dev server for VSCode Extension development')
+  .option('-p, --port <number>', 'Server port')
+  .option('--project-path <path>', 'Extension project path', '.')
+  .option('--vscode-path <path>', 'Path to VSCode executable')
+  .option('-w, --workspace <path>', 'Workspace path')
+  .option('-b, --build-command <command>', 'Build command')
+  .option('-c, --config <path>', 'Path to config file')
+  .option('--verbose', 'Show detailed configuration and logs')
+  .action(async (options) => {
+    try {
+      const cwd = process.cwd();
+      const loader = new ConfigLoader(cwd);
+
+      const { config, source } = loader.load({
+        mode: 'vscode',
+        port: options.port ? parseInt(options.port) : undefined,
+        projectPath: options.projectPath,
+        vscodePath: options.vscodePath,
+        workspacePath: options.workspace,
+        buildCommand: options.buildCommand,
+        configPath: options.config
+      });
+
+      const port = config.port;
+      const projectPath = path.resolve(cwd, config.projectPath || '.');
+
+      console.log(`KamoX v${packageJson.version}`);
+      console.log(`Mode:     VSCode`);
+      console.log(`Project:  ${projectPath}`);
+      console.log(`Config:   ${source}`);
+      console.log(`Port:     ${port}`);
+
+      if (options.verbose) {
+        console.log('Detailed Config:');
+        console.log(`  ├─ projectPath:   ${config.projectPath}`);
+        console.log(`  ├─ vscodePath:    ${(config as any).vscodePath || '(auto-detect)'}`);
+        console.log(`  ├─ workspacePath: ${(config as any).workspacePath || '(none)'}`);
+        console.log(`  └─ port:          ${config.port}`);
+      }
+      console.log('');
+
+      const adapterConfig = {
+        projectPath,
+        vscodePath: (config as any).vscodePath,
+        workspacePath: (config as any).workspacePath,
+        buildCommand: config.buildCommand,
+        environment: 'vscode',
+      }
+
+      const adapter = new VSCodeAdapter(adapterConfig as any)
+
+      console.log('Launching VSCode...')
+      await adapter.launch()
+
+      console.log('')
+      console.log(`Dashboard:  http://localhost:${port}/`)
+      console.log(`API Status: http://localhost:${port}/status`)
+      console.log('')
+      console.log('Press Ctrl+C to stop')
+      console.log('')
+
+      const api = new DevServerAPI(adapter)
+      api.start(port)
+
+    } catch (error: any) {
+      console.error('')
+      console.error('Fatal error:', error.message)
+      console.error('')
       process.exit(1)
     }
   })

@@ -50,6 +50,9 @@ export class ConfigLoader {
       port: cliOptions.port || fileConfig.port || 3000,
       entryPoint: cliOptions.entryPoint || fileConfig.entryPoint,
       electronPath: cliOptions.electronPath || fileConfig.electronPath,
+      projectPath: cliOptions.projectPath || fileConfig.projectPath,
+      vscodePath: cliOptions.vscodePath || fileConfig.vscodePath,
+      workspacePath: cliOptions.workspacePath || fileConfig.workspacePath,
       
       chrome: {
         ...fileConfig.chrome,

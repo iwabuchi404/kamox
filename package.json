@@ -5,6 +5,7 @@
   "description": "Web Extension Dev Server",
   "workspaces": [
     "packages/*",
+    "packages/plugin-vscode",
     "cli"
   ],
   "scripts": {

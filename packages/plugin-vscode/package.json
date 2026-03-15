@@ -1,0 +1,19 @@
+{
+  "name": "@kamox/plugin-vscode",
+  "version": "0.1.0",
+  "description": "VSCode plugin for KamoX using @vscode/extension-tester",
+  "main": "dist/VSCodeAdapter.js",
+  "types": "dist/VSCodeAdapter.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@kamox/core": "^0.1.8",
+    "vscode-extension-tester": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  },
+  "license": "MIT"
+}

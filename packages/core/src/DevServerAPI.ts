@@ -648,6 +648,61 @@ export class DevServerAPI {
       }
     });
 
+
+    // ========== VSCode API エンドポイント ==========
+
+    if ('executeVSCodeCommand' in this.adapter) {
+      this.app.post('/vscode/command', async (req: Request, res: Response) => {
+        try {
+          const { id } = req.body;
+          if (!id) {
+            res.status(400).json({ success: false, error: 'Command ID is required' });
+            return;
+          }
+          await (this.adapter as any).executeVSCodeCommand(id);
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { id }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+    }
+
+    if ('getOutputLogs' in this.adapter) {
+      this.app.get('/vscode/output', async (req: Request, res: Response) => {
+        try {
+          const channel = req.query.channel as string;
+          if (!channel) {
+            res.status(400).json({ success: false, error: 'Channel name is required' });
+            return;
+          }
+          const output = await (this.adapter as any).getOutputLogs(channel);
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { channel, output }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+    }
+
     // ダッシュボード（簡易版）
     this.app.get('/', async (req: Request, res: Response) => {
       let status;

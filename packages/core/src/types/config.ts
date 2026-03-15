@@ -5,6 +5,9 @@ export interface KamoxConfig {
   port?: number;
   entryPoint?: string;
   electronPath?: string;
+  projectPath?: string;
+  vscodePath?: string;
+  workspacePath?: string;
   
   chrome?: {
     testUrls?: string[];
