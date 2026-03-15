@@ -1,19 +1,49 @@
 {
   "name": "@kamox/plugin-vscode",
   "version": "0.1.0",
-  "description": "VSCode plugin for KamoX using @vscode/extension-tester",
-  "main": "dist/VSCodeAdapter.js",
-  "types": "dist/VSCodeAdapter.d.ts",
+  "description": "VSCode Extension adapter for KamoX - Automated testing and live preview for VSCode extensions using vscode-extension-tester",
+  "keywords": [
+    "vscode",
+    "vscode-extension",
+    "extension-tester",
+    "testing",
+    "automation",
+    "kamox",
+    "development-tools",
+    "ai-agent"
+  ],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "type": "module",
   "scripts": {
     "build": "tsc"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "@kamox/core": "^0.1.8",
-    "vscode-extension-tester": "*"
+    "vscode-extension-tester": "^8.23.0"
   },
   "devDependencies": {
     "typescript": "^5.3.3"
   },
-  "license": "MIT"
+  "homepage": "https://github.com/iwabuchi404/kamox#readme",
+  "bugs": {
+    "url": "https://github.com/iwabuchi404/kamox/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iwabuchi404/kamox.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "KamoX Team"
 }

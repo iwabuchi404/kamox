@@ -234,4 +234,179 @@ export default {
 
 #### Further Reading
 For a comprehensive reference on all available options, API methods, and advanced examples, please refer to the [**Scenario Feature Reference**](../docs/scenarios.md).
+
+---
+
+## VSCode Extension Mode
+
+Start the server:
+
+```bash
+kamox vscode --project-path ./my-vscode-extension
 ```
+
+### VSCode Workflow for AI Agents
+
+```
+1. GET  /status                    — Confirm extension is running
+2. POST /check-ui                  — Take screenshot of VSCode window
+3. POST /vscode/command            — Execute a VSCode command
+4. GET  /vscode/output             — Read Extension Host output
+5. GET  /vscode/notifications      — Check for error/info toasts
+6. GET  /vscode/problems           — Check Problems panel (errors/warnings)
+7. POST /rebuild                   — Rebuild extension source
+8. POST /playwright/reload         — Reload VSCode window after rebuild
+```
+
+### VSCode-specific Endpoints
+
+#### Execute a VSCode Command
+**POST** `/vscode/command`
+
+Execute any registered VSCode command by its ID. Equivalent to running a command from the Command Palette.
+
+**Body:**
+```json
+{ "id": "workbench.action.files.save" }
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "timestamp": "...",
+  "environment": "vscode",
+  "data": {}
+}
+```
+
+*Note: Command return values are not retrievable. Use `/check-ui` or `/vscode/notifications` to verify the result visually.*
+
+#### Read Output Channel
+**GET** `/vscode/output?channel=<name>`
+
+Reads the full text of a named Output Channel (e.g., your extension's log channel).
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": { "channel": "My Extension", "text": "[INFO] Extension activated\n..." }
+}
+```
+
+*Action: Search the `text` field for errors or activation confirmation.*
+
+#### Get Notifications
+**GET** `/vscode/notifications`
+
+Returns current notification toasts (info, warning, error banners).
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "notifications": [
+      { "message": "Extension activated successfully", "type": "info", "actions": [] },
+      { "message": "Failed to connect", "type": "error", "actions": ["Retry", "Cancel"] }
+    ]
+  }
+}
+```
+
+#### Dismiss a Notification
+**POST** `/vscode/notifications/dismiss`
+
+**Body:**
+```json
+{ "message": "Failed to connect" }
+```
+
+#### Get Status Bar Item
+**GET** `/vscode/statusbar?pattern=<label>`
+
+Returns the text of a status bar item matching the label pattern.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": { "text": "⚡ My Extension: Ready" }
+}
+```
+
+#### Switch Activity Bar View
+**POST** `/vscode/activity-bar`
+
+**Body:**
+```json
+{ "label": "Explorer" }
+```
+
+Valid labels: `"Explorer"`, `"Search"`, `"Source Control"`, `"Run and Debug"`, `"Extensions"`, or any custom view your extension contributes.
+
+#### List Tree View Items
+**GET** `/vscode/tree-view/:viewId`
+
+Lists the visible items in a side panel tree view section.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": { "viewId": "myExtension.treeView", "items": ["Item A", "Item B", "Item C"] }
+}
+```
+
+#### Quick Pick Selection
+**POST** `/vscode/quick-pick`
+
+**Body:**
+```json
+{ "label": "My Extension: Run Task" }
+```
+
+#### Get Problems Panel
+**GET** `/vscode/problems`
+
+Returns all visible diagnostics from the Problems panel.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "markers": [
+      { "message": "Cannot find module './missing'", "type": "error", "label": "src/index.ts" }
+    ]
+  }
+}
+```
+
+### Take a Screenshot
+**POST** `/check-ui`
+
+Takes a full screenshot of the VSCode window. Use this to visually confirm UI state after any operation.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "loaded": true,
+    "screenshot": "/absolute/path/to/screenshot.png",
+    "logs": [],
+    "errors": []
+  }
+}
+```
+
+*Action: Read the `screenshot` file to visually inspect the VSCode window.*
+
+### Known Limitations
+
+- **`/playwright/mouse`** is not supported in VSCode mode. Use `/playwright/element` with a CSS selector.
+- **Command return values** cannot be retrieved. Verify results via screenshot or notifications.
+- **Extension Host logs** are accessible via `/vscode/output` (Output Channel), not via `/logs` directly.
+- **WebView panel content** inspection is limited due to iframe isolation.

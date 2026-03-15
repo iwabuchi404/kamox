@@ -1,4 +1,14 @@
-import { ExTester, VSBrowser, NotificationType, Workbench, DEFAULT_STORAGE_FOLDER, ReleaseQuality } from 'vscode-extension-tester'
+import { 
+  ExTester, 
+  VSBrowser, 
+  NotificationType, 
+  Workbench, 
+  DEFAULT_STORAGE_FOLDER, 
+  ReleaseQuality, 
+  MarkerType,
+  until,
+  By
+} from 'vscode-extension-tester'
 import { IVSCodeUIDriver, VSCodeLaunchConfig, NotificationInfo } from './IVSCodeUIDriver.js'
 
 export class ExTesterDriver implements IVSCodeUIDriver {
@@ -8,7 +18,6 @@ export class ExTesterDriver implements IVSCodeUIDriver {
     this.exTester = new ExTester();
     
     // Setup VS Code and Driver if needed
-    // downloadCode returns the path to the executable
     const downloadedPath = await this.exTester.downloadCode() as unknown;
     const vscodePath = config.vscodePath || (typeof downloadedPath === 'string' ? downloadedPath : (this.exTester as any).code.executablePath);
     
@@ -18,7 +27,12 @@ export class ExTesterDriver implements IVSCodeUIDriver {
     
     await this.exTester.downloadChromeDriver();
     
-    const browser = new VSBrowser('1.111.0' as any, ReleaseQuality.Stable);
+    // VSBrowser should be used via instance, but we need to ensure it's instantiated
+    let browser = VSBrowser.instance;
+    if (!browser) {
+      // Create new instance if not already exists (sets VSBrowser.instance internally)
+      browser = new VSBrowser('1.111.0' as any, ReleaseQuality.Stable);
+    }
     await browser.start(vscodePath);
     await browser.waitForWorkbench();
   }
@@ -46,10 +60,22 @@ export class ExTesterDriver implements IVSCodeUIDriver {
     return await outputView.getText()
   }
 
+  async openFile(path: string): Promise<void> {
+    await VSBrowser.instance.openResources(path)
+  }
+
   // Placeholder implementations for the rest of Step 1/2/3 to satisfy interface
   async getNotifications(): Promise<NotificationInfo[]> {
     const workbench = new Workbench()
     const center = await workbench.openNotificationsCenter()
+    // Wait for the notifications center to be ready/populated
+    const driver = VSBrowser.instance.driver
+    try {
+      await driver.wait(until.elementLocated(By.className('notifications-list-container')), 5000)
+    } catch (e) {
+      // Fallback or ignore if it doesn't appear in time
+    }
+    
     const notifications = await center.getNotifications(NotificationType.Any)
     return Promise.all(notifications.map(async (n: any) => ({
       message: await n.getMessage(),
@@ -92,7 +118,31 @@ export class ExTesterDriver implements IVSCodeUIDriver {
     const workbench = new Workbench()
     const sideBar = workbench.getSideBar()
     const content = await sideBar.getContent()
-    const section = await content.getSection(viewId)
+    const sections = await content.getSections()
+    let section = null
+    
+    // Try exact match first
+    try {
+      section = await content.getSection(viewId)
+    } catch (e) {
+      // Try case-insensitive match
+      for (const s of sections) {
+        const title = await s.getTitle()
+        if (title.toLowerCase() === viewId.toLowerCase()) {
+          section = s
+          break
+        }
+      }
+    }
+
+    if (!section && sections.length > 0) {
+      // Fallback to first section if nothing found
+      section = sections[0]
+    }
+
+    if (!section) throw new Error(`No section found in sidebar`)
+    
+    await section.expand()
     const items = await section.getVisibleItems()
     return Promise.all(items.map((i: any) => i.getText()))
   }
@@ -102,6 +152,18 @@ export class ExTesterDriver implements IVSCodeUIDriver {
     const quickPick = await workbench.openCommandPrompt()
     await quickPick.setText(label)
     await quickPick.confirm()
+  }
+
+  async getProblems(): Promise<any[]> {
+    const workbench = new Workbench()
+    const bottomBar = await workbench.getBottomBar()
+    const problemsView = await bottomBar.openProblemsView()
+    const markers = await problemsView.getAllVisibleMarkers(MarkerType.Any)
+    return Promise.all(markers.map(async (marker: any) => ({
+      message: await marker.getText(),
+      type: await marker.getType(),
+      label: await marker.getLabel()
+    })))
   }
 
   async click(selector: string): Promise<void> {

@@ -50,6 +50,18 @@ kamox electron --entryPoint main.js
 
 詳細は [docs/electron_ja.md](docs/electron_ja.md) を参照してください。
 
+### VSCode拡張機能での使用
+
+```bash
+# VSCode拡張機能のプロジェクトディレクトリに移動
+cd /path/to/vscode-extension
+
+# KamoXサーバーを起動（VSCodeモード）
+kamox vscode --project-path .
+```
+
+詳細は [packages/plugin-vscode/README.md](packages/plugin-vscode/README.md) を参照してください。
+
 > **Note**: 開発者としてソースコードから実行する場合は [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
 
 ## 使い方
@@ -62,18 +74,48 @@ kamox --help
 
 # Chrome拡張開発サーバーを起動
 kamox chrome [options]
+
+# Electronアプリ開発サーバーを起動
+kamox electron [options]
+
+# VSCode拡張機能開発サーバーを起動
+kamox vscode [options]
+
+# AIエージェント向けAPIガイドを表示
+kamox guide --mode chrome|electron|vscode|all
 ```
 
 ### オプション
 
+#### 共通オプション
+
 | オプション | 説明 | デフォルト |
 |------------|------|------------|
 | `-p, --port <number>` | サーバーポート番号 | `3000` |
-| `-o, --output <path>` | ビルド出力ディレクトリ | `dist` |
 | `-b, --build-command <cmd>` | ビルドコマンド | `npm run build` |
 | `-c, --config <path>` | 設定ファイルパス | `kamox.config.json` |
 | `--verbose` | 詳細なログと設定を表示 | `false` |
+
+#### Chrome専用オプション
+
+| オプション | 説明 | デフォルト |
+|------------|------|------------|
+| `-o, --output <path>` | ビルド出力ディレクトリ | `dist` |
 | `--auto-build` | 出力ディレクトリがない場合に自動ビルド | `false` |
+
+#### Electron専用オプション
+
+| オプション | 説明 | デフォルト |
+|------------|------|------------|
+| `--entryPoint <file>` | Electronのメインスクリプト | `main.js` |
+
+#### VSCode専用オプション
+
+| オプション | 説明 | デフォルト |
+|------------|------|------------|
+| `--project-path <path>` | 拡張機能のプロジェクトパス | `.` |
+| `--vscode-path <path>` | VSCode実行ファイルのパス | 自動検出 |
+| `-w, --workspace <path>` | 開くワークスペースフォルダ | なし |
 
 ### 設定ファイル (kamox.config.json)
 
@@ -88,21 +130,50 @@ kamox chrome [options]
 }
 ```
 
+VSCode拡張機能の場合:
+
+```json
+{
+  "mode": "vscode",
+  "projectPath": ".",
+  "buildCommand": "npm run compile",
+  "port": 3000
+}
+```
+
 ### API エンドポイント
+
+#### 共通（全モード）
 
 | メソッド | パス | 説明 |
 |---|---|---|
+| GET | `/status` | サーバー状態確認 |
 | POST | `/rebuild` | プロジェクトのリビルド |
 | GET | `/scenarios` | 利用可能なシナリオ一覧の取得 |
-| POST | `/check-ui` | UI表示確認（Popup等） |
+| POST | `/check-ui` | UI確認・スクリーンショット取得 |
 | POST | `/check-script` | Content Script確認 |
 | GET | `/logs` | ログ取得 |
 | POST | `/playwright/mouse` | マウス操作 (click, move, drag) |
 | POST | `/playwright/keyboard` | キーボード操作 (type, press) |
 | POST | `/playwright/element` | 要素操作 (click, fill, check) |
-| POST | `/playwright/wait` | 待機操作 (selector, timeout) |
-| POST | `/playwright/reload` | ページリロード |
+| POST | `/playwright/wait` | 待機操作 (timeout) |
+| POST | `/playwright/reload` | ページ・ウィンドウリロード |
 | GET | `/` | 開発ダッシュボード |
+
+#### VSCode専用
+
+| メソッド | パス | 説明 |
+|---|---|---|
+| POST | `/vscode/command` | VSCodeコマンドをIDで実行 |
+| GET | `/vscode/output` | 出力チャンネルのテキスト取得 |
+| POST | `/vscode/open` | エディタでファイルを開く |
+| GET | `/vscode/notifications` | 通知トーストの一覧取得 |
+| POST | `/vscode/notifications/dismiss` | 通知を閉じる |
+| GET | `/vscode/statusbar` | ステータスバーアイテムのテキスト取得 |
+| POST | `/vscode/activity-bar` | ActivityBarのビューを切り替え |
+| GET | `/vscode/tree-view/:viewId` | ツリービューのアイテム一覧 |
+| POST | `/vscode/quick-pick` | クイックピックからアイテムを選択 |
+| GET | `/vscode/problems` | Problemsパネルのマーカー一覧 |
 
 ### ダッシュボード機能
 

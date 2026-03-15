@@ -15,6 +15,7 @@ export interface IVSCodeUIDriver {
   // ライフサイクル
   launch(config: VSCodeLaunchConfig): Promise<void>
   quit(): Promise<void>
+  openFile(path: string): Promise<void>
 
   // スクリーンショット
   takeScreenshot(): Promise<Buffer>
@@ -30,6 +31,7 @@ export interface IVSCodeUIDriver {
   clickActivityBarItem(label: string): Promise<void>
   getTreeViewItems(viewId: string): Promise<string[]>
   selectQuickPickItem(label: string): Promise<void>
+  getProblems(): Promise<any[]>
 
   // 汎用セレクター操作（フォールバック用）
   click(selector: string): Promise<void>

@@ -32,6 +32,18 @@ kamox electron --entryPoint main.js
 
 See [docs/electron.md](docs/electron.md) for details.
 
+### For VSCode Extensions
+
+```bash
+# Go to your VSCode extension project directory
+cd /path/to/vscode-extension
+
+# Start KamoX server for VSCode
+kamox vscode --project-path .
+```
+
+See [packages/plugin-vscode/README.md](packages/plugin-vscode/README.md) for details.
+
 > **Note**: If you want to run from source code as a contributor, please refer to [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Usage
@@ -44,19 +56,48 @@ kamox --help
 
 # Start Chrome Extension development server
 kamox chrome [options]
+
+# Start Electron app development server
+kamox electron [options]
+
+# Start VSCode Extension development server
+kamox vscode [options]
+
+# Show AI agent API guide
+kamox guide --mode chrome|electron|vscode|all
 ```
 
 ### Options
 
+#### Common Options
+
 | Option | Description | Default |
 | --- | --- | --- |
 | `-p, --port <number>` | Server port number | `3000` |
-| `-o, --output <path>` | Build output directory | `dist` |
 | `-b, --build-command <cmd>` | Build command | `npm run build` |
 | `-c, --config <path>` | Config file path | `kamox.config.json` |
-| `--entryPoint <file>` | Electron main script (Electron mode only) | — |
 | `--verbose` | Show detailed logs and config | `false` |
+
+#### Chrome-specific Options
+
+| Option | Description | Default |
+| --- | --- | --- |
+| `-o, --output <path>` | Build output directory | `dist` |
 | `--auto-build` | Automatically build if output directory is missing | `false` |
+
+#### Electron-specific Options
+
+| Option | Description | Default |
+| --- | --- | --- |
+| `--entryPoint <file>` | Electron main script | `main.js` |
+
+#### VSCode-specific Options
+
+| Option | Description | Default |
+| --- | --- | --- |
+| `--project-path <path>` | Extension project path | `.` |
+| `--vscode-path <path>` | Path to VSCode executable | Auto-detect |
+| `-w, --workspace <path>` | Workspace folder to open | None |
 
 ### Configuration File (kamox.config.json)
 
@@ -71,22 +112,56 @@ Creating a `kamox.config.json` in your project root saves you from specifying op
 }
 ```
 
+For VSCode extensions:
+
+```json
+{
+  "mode": "vscode",
+  "projectPath": ".",
+  "buildCommand": "npm run compile",
+  "port": 3000
+}
+```
+
 ## API Endpoints
+
+### Common (All Modes)
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | GET | `/status` | Check server status |
 | POST | `/rebuild` | Rebuild project |
 | GET | `/scenarios` | List available test scenarios |
-| POST | `/check-ui` | Verify UI (Popup, etc.) |
-| POST | `/check-script` | Verify Content Script |
+| POST | `/check-ui` | Verify UI / take screenshot |
+| POST | `/check-script` | Verify Content Script injection |
 | GET | `/logs` | Get logs |
 | POST | `/playwright/mouse` | Mouse Action (click, move, drag) |
 | POST | `/playwright/keyboard` | Keyboard Action (type, press) |
 | POST | `/playwright/element` | Element Action (click, fill, check) |
-| POST | `/playwright/wait` | Wait Action (selector, timeout) |
-| POST | `/playwright/reload` | Reload Page |
+| POST | `/playwright/wait` | Wait Action (timeout) |
+| POST | `/playwright/reload` | Reload Page/Window |
 | GET | `/` | Development Dashboard |
+
+### VSCode-specific
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| POST | `/vscode/command` | Execute a VSCode command by ID |
+| GET | `/vscode/output` | Read an Output Channel |
+| POST | `/vscode/open` | Open a file in the editor |
+| GET | `/vscode/notifications` | Get notification toasts |
+| POST | `/vscode/notifications/dismiss` | Dismiss a notification |
+| GET | `/vscode/statusbar` | Read a status bar item |
+| POST | `/vscode/activity-bar` | Switch Activity Bar view |
+| GET | `/vscode/tree-view/:viewId` | List tree view items |
+| POST | `/vscode/quick-pick` | Select from a Quick Pick |
+| GET | `/vscode/problems` | Get Problems panel markers |
+
+For the full LLM-friendly API reference, run:
+
+```bash
+kamox guide --mode vscode
+```
 
 ### Interactive Testing (Playwright API)
 

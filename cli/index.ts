@@ -368,11 +368,11 @@ program
 program
   .command('guide')
   .description('Show API reference for AI agents and developers')
-  .option('--mode <mode>', 'Filter by mode: chrome, electron (default: all)')
+  .option('--mode <mode>', 'Filter by mode: chrome, electron, vscode (default: all)')
   .action((options) => {
     const mode = options.mode || 'all'
-    if (!['chrome', 'electron', 'all'].includes(mode)) {
-      console.error(`Invalid mode: ${mode}. Use chrome, electron, or all.`)
+    if (!['chrome', 'electron', 'vscode', 'all'].includes(mode)) {
+      console.error(`Invalid mode: ${mode}. Use chrome, electron, vscode, or all.`)
       process.exit(1)
     }
     console.log(generateGuide(mode))

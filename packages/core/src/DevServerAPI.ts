@@ -677,6 +677,32 @@ export class DevServerAPI {
       });
     }
 
+    if ('openFile' in this.adapter) {
+      this.app.post('/vscode/open', async (req: Request, res: Response) => {
+        try {
+          const { path } = req.body;
+          if (!path) {
+            res.status(400).json({ success: false, error: 'Path is required' });
+            return;
+          }
+          await (this.adapter as any).openFile(path);
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { path }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+    }
+
     if ('getOutputLogs' in this.adapter) {
       this.app.get('/vscode/output', async (req: Request, res: Response) => {
         try {
@@ -691,6 +717,174 @@ export class DevServerAPI {
             timestamp: new Date().toISOString(),
             environment: this.adapter.getEnvironment(),
             data: { channel, output }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+    }
+
+    if ('getVSCodeNotifications' in this.adapter) {
+      this.app.get('/vscode/notifications', async (req: Request, res: Response) => {
+        try {
+          const notifications = await (this.adapter as any).getVSCodeNotifications();
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { notifications }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+    }
+
+    if ('dismissVSCodeNotification' in this.adapter) {
+      this.app.post('/vscode/notifications/dismiss', async (req: Request, res: Response) => {
+        try {
+          const { message } = req.body;
+          if (!message) {
+            res.status(400).json({ success: false, error: 'Message is required' });
+            return;
+          }
+          await (this.adapter as any).dismissVSCodeNotification(message);
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { message }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+    }
+
+    if ('getVSCodeStatusBarItem' in this.adapter) {
+      this.app.get('/vscode/statusbar', async (req: Request, res: Response) => {
+        try {
+          const pattern = req.query.pattern as string;
+          if (!pattern) {
+            res.status(400).json({ success: false, error: 'Pattern is required' });
+            return;
+          }
+          const text = await (this.adapter as any).getVSCodeStatusBarItem(pattern);
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { pattern, text }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+    }
+
+    if ('setVSCodeActivityBarItem' in this.adapter) {
+      this.app.post('/vscode/activity-bar', async (req: Request, res: Response) => {
+        try {
+          const { label } = req.body;
+          if (!label) {
+            res.status(400).json({ success: false, error: 'Label is required' });
+            return;
+          }
+          await (this.adapter as any).setVSCodeActivityBarItem(label);
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { label }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+    }
+
+    if ('getVSCodeTreeView' in this.adapter) {
+      this.app.get('/vscode/tree-view/:viewId', async (req: Request, res: Response) => {
+        try {
+          const viewId = req.params.viewId;
+          const items = await (this.adapter as any).getVSCodeTreeView(viewId);
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { viewId, items }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+    }
+
+    if ('selectVSCodeQuickPick' in this.adapter) {
+      this.app.post('/vscode/quick-pick', async (req: Request, res: Response) => {
+        try {
+          const { label } = req.body;
+          if (!label) {
+            res.status(400).json({ success: false, error: 'Label is required' });
+            return;
+          }
+          await (this.adapter as any).selectVSCodeQuickPick(label);
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { label }
+          });
+        } catch (error: any) {
+          res.status(500).json({
+            success: false,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            error: error.message
+          });
+        }
+      });
+    }
+
+    if ('getVSCodeProblems' in this.adapter) {
+      this.app.get('/vscode/problems', async (req: Request, res: Response) => {
+        try {
+          const problems = await (this.adapter as any).getVSCodeProblems();
+          res.json({
+            success: true,
+            timestamp: new Date().toISOString(),
+            environment: this.adapter.getEnvironment(),
+            data: { problems }
           });
         } catch (error: any) {
           res.status(500).json({

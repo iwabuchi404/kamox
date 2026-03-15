@@ -39,6 +39,11 @@ export class VSCodeAdapter extends BaseDevServer {
     await this.driver.executeCommand('workbench.action.reloadWindow');
   }
 
+  async openFile(path: string): Promise<void> {
+    this.logger.log('info', `Opening file: ${path}`, 'system');
+    await this.driver.openFile(path);
+  }
+
   async checkUI(options?: { url?: string; actions?: UserAction[]; scenario?: string }): Promise<UICheckResult> {
     const screenshotBuffer = await this.driver.takeScreenshot();
     const screenshotPath = await this.screenshotManager.saveScreenshot(screenshotBuffer, 'vscode-ui');
@@ -70,8 +75,37 @@ export class VSCodeAdapter extends BaseDevServer {
     return await this.driver.getOutputChannelText(channel);
   }
 
+  async getVSCodeNotifications() {
+    return await this.driver.getNotifications();
+  }
+
+  async dismissVSCodeNotification(message: string) {
+    await this.driver.dismissNotification(message);
+  }
+
+  async getVSCodeStatusBarItem(labelPattern: string) {
+    return await this.driver.getStatusBarItemText(labelPattern);
+  }
+
+  async setVSCodeActivityBarItem(label: string) {
+    await this.driver.clickActivityBarItem(label);
+  }
+
+  async getVSCodeTreeView(viewId: string) {
+    return await this.driver.getTreeViewItems(viewId);
+  }
+
+  async selectVSCodeQuickPick(label: string) {
+    await this.driver.selectQuickPickItem(label);
+  }
+
+  async getVSCodeProblems() {
+    return await this.driver.getProblems();
+  }
+
   // Playwright API implementations (minimal for VS Code)
   async performMouseAction(request: PlaywrightMouseRequest): Promise<PlaywrightActionResult> {
+    this.logger.log('warn', `Mouse actions via Playwright API not supported in VSCode environment: ${request.action}`, 'system');
     return { success: false, error: 'Mouse actions via Playwright API not supported in VSCode environment' };
   }
 
@@ -80,6 +114,7 @@ export class VSCodeAdapter extends BaseDevServer {
       await this.driver.typeText(request.text);
       return { success: true };
     }
+    this.logger.log('warn', `Keyboard action not supported or missing text: ${request.action}`, 'system');
     return { success: false, error: 'Keyboard action not supported or missing text' };
   }
 
@@ -88,11 +123,18 @@ export class VSCodeAdapter extends BaseDevServer {
       await this.driver.click(request.selector);
       return { success: true };
     }
+    this.logger.log('warn', `Element action ${request.action} not supported`, 'system');
     return { success: false, error: `Element action ${request.action} not supported` };
   }
 
   async performWait(request: PlaywrightWaitRequest): Promise<PlaywrightActionResult> {
-    return { success: false, error: 'Wait action not supported' };
+    if (request.timeout) {
+      this.logger.log('info', `Waiting for ${request.timeout}ms...`, 'system');
+      await new Promise(resolve => setTimeout(resolve, request.timeout));
+      return { success: true };
+    }
+    this.logger.log('warn', 'Wait action called without timeout', 'system');
+    return { success: false, error: 'Timeout is required for wait action' };
   }
 
   async performReload(request: PlaywrightReloadRequest): Promise<PlaywrightActionResult> {
