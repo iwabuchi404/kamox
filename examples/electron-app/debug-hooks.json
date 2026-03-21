@@ -1,0 +1,3 @@
+{
+    "script": "return { hookLoaded: !!window.__kamoxHookLoaded, rendererSpy: !!window.__kamoxRendererSpy, hasRequire: !!window.require };"
+}

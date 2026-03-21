@@ -1,0 +1,5 @@
+{
+    "selector": "#username",
+    "action": "fill",
+    "value": "verified-user"
+}

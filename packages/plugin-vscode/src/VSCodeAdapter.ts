@@ -13,15 +13,15 @@ import {
   UserAction
 } from '@kamox/core';
 import { IVSCodeUIDriver } from './drivers/IVSCodeUIDriver.js';
-import { ExTesterDriver } from './drivers/ExTesterDriver.js';
+import { PlaywrightVSCodeDriver } from './drivers/PlaywrightVSCodeDriver.js';
 
 export class VSCodeAdapter extends BaseDevServer {
   private driver: IVSCodeUIDriver;
 
   constructor(config: ServerConfig, driver?: IVSCodeUIDriver) {
     super(config);
-    // driver未指定時はExTesterDriverをデフォルト使用
-    this.driver = driver ?? new ExTesterDriver();
+    // driver未指定時はPlaywrightVSCodeDriverをデフォルト使用
+    this.driver = driver ?? new PlaywrightVSCodeDriver();
   }
 
   async launch(): Promise<void> {
@@ -112,6 +112,10 @@ export class VSCodeAdapter extends BaseDevServer {
   async performKeyboardAction(request: PlaywrightKeyboardRequest): Promise<PlaywrightActionResult> {
     if (request.action === 'type' && request.text) {
       await this.driver.typeText(request.text);
+      return { success: true };
+    }
+    if (request.action === 'press' && request.key) {
+      await this.driver.pressKey(request.key);
       return { success: true };
     }
     this.logger.log('warn', `Keyboard action not supported or missing text: ${request.action}`, 'system');

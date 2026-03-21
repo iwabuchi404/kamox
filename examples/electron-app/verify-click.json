@@ -1,0 +1,4 @@
+{
+    "selector": "#submitBtn",
+    "action": "click"
+}

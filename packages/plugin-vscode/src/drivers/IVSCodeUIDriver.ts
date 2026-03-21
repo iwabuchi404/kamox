@@ -36,5 +36,6 @@ export interface IVSCodeUIDriver {
   // 汎用セレクター操作（フォールバック用）
   click(selector: string): Promise<void>
   typeText(text: string): Promise<void>
+  pressKey(key: string): Promise<void>
   evaluate(script: string): Promise<any>
 }

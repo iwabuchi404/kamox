@@ -1,11 +1,11 @@
 {
   "name": "@kamox/plugin-vscode",
-  "version": "0.1.0",
-  "description": "VSCode Extension adapter for KamoX - Automated testing and live preview for VSCode extensions using vscode-extension-tester",
+  "version": "0.1.9",
+  "description": "VSCode Extension adapter for KamoX - Automated testing and live preview for VSCode extensions using Playwright",
   "keywords": [
     "vscode",
     "vscode-extension",
-    "extension-tester",
+    "playwright",
     "testing",
     "automation",
     "kamox",
@@ -27,7 +27,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@kamox/core": "^0.1.8",
+    "@kamox/core": "^0.1.10",
+    "playwright": "^1.40.0",
     "vscode-extension-tester": "^8.23.0"
   },
   "devDependencies": {
