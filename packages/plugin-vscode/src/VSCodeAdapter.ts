@@ -44,7 +44,7 @@ export class VSCodeAdapter extends BaseDevServer {
     await this.driver.openFile(path);
   }
 
-  async checkUI(options?: { url?: string; actions?: UserAction[]; scenario?: string }): Promise<UICheckResult> {
+  async checkUI(options?: { url?: string; actions?: UserAction[]; scenario?: string; keepOpen?: boolean }): Promise<UICheckResult> {
     const screenshotBuffer = await this.driver.takeScreenshot();
     const screenshotPath = await this.screenshotManager.saveScreenshot(screenshotBuffer, 'vscode-ui');
     

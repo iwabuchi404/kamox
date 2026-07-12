@@ -211,7 +211,7 @@ export class ElectronAdapter extends BaseDevServer {
     this.lastBuildTime = new Date().toISOString();
   }
 
-  async checkUI(options?: { url?: string; actions?: UserAction[]; windowIndex?: number; windowTitle?: string; scenario?: string }): Promise<UICheckResult> {
+  async checkUI(options?: { url?: string; actions?: UserAction[]; windowIndex?: number; windowTitle?: string; scenario?: string; keepOpen?: boolean }): Promise<UICheckResult> {
     if (!this.electronApp) {
       throw new Error('Electron app not running');
     }

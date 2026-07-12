@@ -12,7 +12,8 @@ import {
   PlaywrightEvaluateRequest,
   PlaywrightActionResult,
   ScenarioExecutionResult,
-  LogEntry
+  LogEntry,
+  PageType
 } from '@kamox/core/dist/types/common.js';
 import { ScenarioLoader, Scenario } from '@kamox/core/dist/utils/scenarioLoader.js';
 import { chromium, BrowserContext, Page } from 'playwright';
@@ -34,6 +35,7 @@ export class ChromeExtensionAdapter extends BaseDevServer {
   private lastBuildTime: string | null = null;
   private sharedContext: BrowserContext | null = null;
   private scenarioLoader: ScenarioLoader | null = null;
+  private pageIdMap: Map<string, Page> = new Map();
 
   async launch(): Promise<void> {
     const originalProjectPath = path.resolve(this.state.config.projectPath);
@@ -323,11 +325,11 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     this.scenarioLoader = new ScenarioLoader(rootDir, this.logger);
   }
 
-  async checkUI(options?: { url?: string; actions?: UserAction[]; scenario?: string }): Promise<UICheckResult> {
-    return this.checkPopup(options?.url, options?.actions, options?.scenario);
+  async checkUI(options?: { url?: string; actions?: UserAction[]; scenario?: string; keepOpen?: boolean }): Promise<UICheckResult> {
+    return this.checkPopup(options?.url, options?.actions, options?.scenario, options?.keepOpen);
   }
 
-  async checkPopup(targetUrl?: string, actions?: UserAction[], scenarioName?: string): Promise<UICheckResult> {
+  async checkPopup(targetUrl?: string, actions?: UserAction[], scenarioName?: string, keepOpen?: boolean): Promise<UICheckResult> {
     if (!this.context || !this.extensionId) {
       throw new Error('Extension not loaded');
     }
@@ -532,8 +534,16 @@ export class ChromeExtensionAdapter extends BaseDevServer {
       this.logger.log('error', `Failed to get DOM: ${e.message}`, pageId);
     }
 
-    // ページを閉じる
-    await popup.close();
+    // ページを閉じる（keepOpenが指定されていない場合）
+    if (!keepOpen) {
+      await popup.close();
+    } else {
+      // pageIdMapに登録して、後続のPlaywright操作で利用可能にする
+      this.pageIdMap.set(pageId, popup);
+      popup.on('close', () => {
+        this.pageIdMap.delete(pageId);
+      });
+    }
     
     // ターゲットページも閉じる
     if (targetPage) {
@@ -563,18 +573,29 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     return result;
   }
 
-  async openPopup(): Promise<{ success: boolean; message: string }> {
+  async openPopup(options?: { pageType?: PageType }): Promise<{ success: boolean; message: string; pageId?: string; pageType?: PageType }> {
     if (!this.context || !this.extensionId) {
       throw new Error('Extension not loaded');
     }
 
-    const popupUrl = `chrome-extension://${this.extensionId}/popup.html`;
-    this.logger.log('info', `Opening popup: ${popupUrl}`, 'system');
+    const pageType = options?.pageType || 'popup';
+    const pageFile = pageType === 'options' ? 'options.html' : 'popup.html';
+    const pageUrl = `chrome-extension://${this.extensionId}/${pageFile}`;
+    this.logger.log('info', `Opening ${pageType}: ${pageUrl}`, 'system');
     
     const page = await this.context.newPage();
-    await page.goto(popupUrl);
-    
-    return { success: true, message: 'Popup opened' };
+    await page.goto(pageUrl);
+    await page.waitForLoadState('domcontentloaded');
+
+    const pageId = `${pageType}_${Date.now()}`;
+    this.pageIdMap.set(pageId, page);
+
+    // ページが閉じられたらマップから削除
+    page.on('close', () => {
+      this.pageIdMap.delete(pageId);
+    });
+
+    return { success: true, message: `${pageType} opened`, pageId, pageType };
   }
 
   async wakeUpServiceWorker(): Promise<{ success: boolean; message: string }> {
@@ -676,6 +697,57 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     return this.lastBuildTime;
   }
 
+  // Page selection helper for Chrome multi-page support
+  private getPage(selector?: { pageId?: string; pageUrl?: string; pageType?: PageType; pageIndex?: number }): Page | null {
+    if (!this.context) return null;
+    const pages = this.context.pages();
+    if (pages.length === 0) return null;
+
+    // 1. pageId で検索（openPopup/checkUI で登録されたID）
+    if (selector?.pageId) {
+      const mapped = this.pageIdMap.get(selector.pageId);
+      if (mapped && !mapped.isClosed()) return mapped;
+      // pageIdMap にない場合は URL としても検索
+    }
+
+    // 2. pageUrl で検索
+    if (selector?.pageUrl) {
+      const found = pages.find(p => p.url().includes(selector.pageUrl!));
+      if (found) return found;
+    }
+
+    // 3. pageType で検索
+    if (selector?.pageType) {
+      const extPrefix = this.extensionId ? `chrome-extension://${this.extensionId}/` : 'chrome-extension://';
+      switch (selector.pageType) {
+        case 'popup': {
+          const found = pages.find(p => p.url().startsWith(extPrefix + 'popup.html'));
+          if (found) return found;
+          break;
+        }
+        case 'options': {
+          const found = pages.find(p => p.url().startsWith(extPrefix + 'options.html'));
+          if (found) return found;
+          break;
+        }
+        case 'tab': {
+          const found = pages.find(p => !p.url().startsWith('chrome-extension://') && !p.url().startsWith('about:'));
+          if (found) return found;
+          break;
+        }
+      }
+    }
+
+    // 4. pageIndex で検索
+    if (selector?.pageIndex !== undefined) {
+      const page = pages[selector.pageIndex];
+      if (page) return page;
+    }
+
+    // 5. フォールバック: pages[0]
+    return pages[0];
+  }
+
   // Playwright API implementations
   async performMouseAction(request: PlaywrightMouseRequest): Promise<PlaywrightActionResult> {
     if (!this.context) {
@@ -686,15 +758,14 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     }
 
     try {
-      const pages = this.context.pages();
-      if (pages.length === 0) {
+      const page = this.getPage(request);
+      if (!page) {
         return {
           success: false,
           error: 'No active pages found'
         };
       }
 
-      const page = pages[0];
       const button = request.button || 'left';
       const clickCount = request.clickCount || 1;
 
@@ -754,15 +825,13 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     }
 
     try {
-      const pages = this.context.pages();
-      if (pages.length === 0) {
+      const page = this.getPage(request);
+      if (!page) {
         return {
           success: false,
           error: 'No active pages found'
         };
       }
-
-      const page = pages[0];
 
       switch (request.action) {
         case 'type':
@@ -815,15 +884,14 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     }
 
     try {
-      const pages = this.context.pages();
-      if (pages.length === 0) {
+      const page = this.getPage(request);
+      if (!page) {
         return {
           success: false,
           error: 'No active pages found'
         };
       }
 
-      const page = pages[0];
       const timeout = request.timeout || 5000;
       const element = page.locator(request.selector);
 
@@ -907,15 +975,14 @@ export class ChromeExtensionAdapter extends BaseDevServer {
     }
 
     try {
-      const pages = this.context.pages();
-      if (pages.length === 0) {
+      const page = this.getPage(request);
+      if (!page) {
         return {
           success: false,
           error: 'No active pages found'
         };
       }
 
-      const page = pages[0];
       const startTime = Date.now();
 
       switch (request.type) {
@@ -967,9 +1034,8 @@ export class ChromeExtensionAdapter extends BaseDevServer {
   async performReload(request: PlaywrightReloadRequest): Promise<PlaywrightActionResult> {
     if (!this.context) return { success: false, error: 'Browser context not initialized' };
     try {
-      const pages = this.context.pages();
-      if (pages.length === 0) return { success: false, error: 'No active pages found' };
-      const page = pages[0];
+      const page = this.getPage(request);
+      if (!page) return { success: false, error: 'No active pages found' };
       const waitUntil = request.waitUntil || 'load';
       await page.reload({ waitUntil, timeout: request.timeout || 30000 });
       return { success: true, data: { reloaded: true, waitUntil } };
@@ -981,9 +1047,8 @@ export class ChromeExtensionAdapter extends BaseDevServer {
   async performEvaluate(request: PlaywrightEvaluateRequest): Promise<PlaywrightActionResult> {
     if (!this.context) return { success: false, error: 'Browser context not initialized' };
     try {
-      const pages = this.context.pages();
-      if (pages.length === 0) return { success: false, error: 'No active pages found' };
-      const page = pages[0];
+      const page = this.getPage(request);
+      if (!page) return { success: false, error: 'No active pages found' };
       const result = await page.evaluate(({ script, arg }) => {
         const fn = new Function('arg', `return ${script}`);
         return fn(arg);

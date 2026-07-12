@@ -84,7 +84,17 @@ export interface ServerStatus {
 }
 
 // Playwright API types
-// windowIndex / windowTitle は Electron マルチウィンドウ対応用（Chrome では無視される）
+// windowIndex / windowTitle は Electron マルチウィンドウ対応用
+// pageId / pageUrl / pageType は Chrome マルチページ対応用（Electron/VSCode では無視される）
+export type PageType = 'popup' | 'options' | 'tab';
+
+export interface PageSelector {
+  pageId?: string;
+  pageUrl?: string;
+  pageType?: PageType;
+  pageIndex?: number;
+}
+
 export interface PlaywrightMouseRequest {
   action: 'click' | 'move' | 'down' | 'up' | 'drag';
   x: number;
@@ -95,6 +105,10 @@ export interface PlaywrightMouseRequest {
   toY?: number;
   windowIndex?: number;
   windowTitle?: string;
+  pageId?: string;
+  pageUrl?: string;
+  pageType?: PageType;
+  pageIndex?: number;
 }
 
 export interface PlaywrightKeyboardRequest {
@@ -103,6 +117,10 @@ export interface PlaywrightKeyboardRequest {
   key?: string;
   windowIndex?: number;
   windowTitle?: string;
+  pageId?: string;
+  pageUrl?: string;
+  pageType?: PageType;
+  pageIndex?: number;
 }
 
 export interface PlaywrightElementRequest {
@@ -113,6 +131,10 @@ export interface PlaywrightElementRequest {
   timeout?: number;
   windowIndex?: number;
   windowTitle?: string;
+  pageId?: string;
+  pageUrl?: string;
+  pageType?: PageType;
+  pageIndex?: number;
 }
 
 export interface PlaywrightWaitRequest {
@@ -122,6 +144,10 @@ export interface PlaywrightWaitRequest {
   timeout?: number;
   windowIndex?: number;
   windowTitle?: string;
+  pageId?: string;
+  pageUrl?: string;
+  pageType?: PageType;
+  pageIndex?: number;
 }
 
 export interface PlaywrightReloadRequest {
@@ -129,6 +155,10 @@ export interface PlaywrightReloadRequest {
   timeout?: number;
   windowIndex?: number;
   windowTitle?: string;
+  pageId?: string;
+  pageUrl?: string;
+  pageType?: PageType;
+  pageIndex?: number;
 }
 
 export interface PlaywrightEvaluateRequest {
@@ -136,6 +166,10 @@ export interface PlaywrightEvaluateRequest {
   arg?: any;
   windowIndex?: number;
   windowTitle?: string;
+  pageId?: string;
+  pageUrl?: string;
+  pageType?: PageType;
+  pageIndex?: number;
 }
 
 export interface PlaywrightActionResult {
@@ -155,9 +189,7 @@ export interface ScenarioMetadata {
     enabled?: boolean;
     parallel?: boolean;
   };
-}
-
-export interface ScenarioExecutionResult {
+}export interface ScenarioExecutionResult {
   success: boolean;
   logs: LogEntry[];
   executionTime: number;

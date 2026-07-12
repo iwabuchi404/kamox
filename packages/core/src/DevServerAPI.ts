@@ -53,8 +53,8 @@ export class DevServerAPI {
 
     this.app.post('/check-ui', async (req: Request, res: Response) => {
       try {
-        const { url, actions, scenario, windowIndex, windowTitle } = req.body;
-        const result = await this.adapter.checkUI({ url, actions, scenario, windowIndex, windowTitle } as any);
+        const { url, actions, scenario, keepOpen, windowIndex, windowTitle } = req.body;
+        const result = await this.adapter.checkUI({ url, actions, scenario, keepOpen, windowIndex, windowTitle } as any);
         res.json({
           success: true,
           timestamp: new Date().toISOString(),
@@ -604,7 +604,8 @@ export class DevServerAPI {
     this.app.post('/playwright/open-popup', async (req: Request, res: Response) => {
       try {
         if ('openPopup' in this.adapter) {
-          const result = await (this.adapter as any).openPopup();
+          const { pageType } = req.body || {};
+          const result = await (this.adapter as any).openPopup({ pageType });
           res.json({
             success: true,
             timestamp: new Date().toISOString(),
