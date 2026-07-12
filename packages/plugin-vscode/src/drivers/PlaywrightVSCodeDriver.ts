@@ -1,29 +1,32 @@
 import { _electron as electron, ElectronApplication, Page } from 'playwright'
+import { chromium } from 'playwright'
 import { IVSCodeUIDriver, VSCodeLaunchConfig, NotificationInfo } from './IVSCodeUIDriver.js'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
+import { spawn, ChildProcess } from 'child_process'
 
 export class PlaywrightVSCodeDriver implements IVSCodeUIDriver {
   private app: ElectronApplication | null = null
   private page: Page | null = null
   private userDataDir: string | null = null
+  private childProcess: ChildProcess | null = null
+  private browser: import('playwright').Browser | null = null
 
   async launch(config: VSCodeLaunchConfig): Promise<void> {
     const extensionAbsPath = path.resolve(config.extensionPath)
     console.log(`[KamoX] extensionPath (resolved): ${extensionAbsPath}`)
 
-    // VSCodeバイナリのパスを決定（指定なければ自動検出またはExTesterのキャッシュを使用）
+    // VSCodeバイナリのパスを決定
     const vscodePath = config.vscodePath || this.findVSCode()
     console.log(`[KamoX] VSCode binary: ${vscodePath}`)
 
-    // テスト用の独立したユーザーデータディレクトリ（ユーザーのVSCodeと競合を避けるため毎回新規作成）
-    // 同じディレクトリを使い回すと前回の残存プロセスとmutex競合が発生する
+    // テスト用の独立したユーザーデータディレクトリ
     this.userDataDir = path.join(os.tmpdir(), `kamox-vscode-profile-${Date.now()}`)
     fs.mkdirSync(this.userDataDir, { recursive: true })
     console.log(`[KamoX] User data dir: ${this.userDataDir}`)
 
-    // ELECTRON_RUN_AS_NODE が設定されているとElectronがNode.jsモードで起動する問題を回避
+    // ELECTRON_RUN_AS_NODE を除外
     const launchEnv: Record<string, string> = {}
     for (const [key, value] of Object.entries(process.env)) {
       if (key !== 'ELECTRON_RUN_AS_NODE' && value !== undefined) {
@@ -31,10 +34,8 @@ export class PlaywrightVSCodeDriver implements IVSCodeUIDriver {
       }
     }
 
+    const debugPort = 9222 + Math.floor(Math.random() * 1000)
     const args = [
-      '--no-sandbox',
-      '--disable-gpu',
-      '--in-process-gpu',
       `--extensionDevelopmentPath=${extensionAbsPath}`,
       `--user-data-dir=${this.userDataDir}`,
       '--no-first-run',
@@ -42,6 +43,7 @@ export class PlaywrightVSCodeDriver implements IVSCodeUIDriver {
       '--skip-welcome',
       '--disable-updates',
       '--disable-workspace-trust',
+      `--remote-debugging-port=${debugPort}`,
       ...(config.additionalArgs ?? [])
     ]
 
@@ -50,17 +52,85 @@ export class PlaywrightVSCodeDriver implements IVSCodeUIDriver {
     }
 
     console.log(`[KamoX] Launching VSCode with args: ${args.join(' ')}`)
+    console.log(`[KamoX] Remote debugging port: ${debugPort}`)
 
-    this.app = await electron.launch({
-      executablePath: vscodePath,
-      args,
+    // spawn VSCode process
+    this.childProcess = spawn(vscodePath, args, {
       env: launchEnv,
+      stdio: 'pipe',
+      detached: false,
     })
 
-    // 最初のウィンドウ（ワークベンチ）を取得
-    this.page = await this.app.firstWindow()
+    this.childProcess.stdout?.on('data', (data: Buffer) => {
+      const text = data.toString().trim()
+      if (text) console.log(`[KamoX] VSCode stdout: ${text}`)
+    })
 
-    // ワークベンチが完全に表示されるまで待機
+    this.childProcess.stderr?.on('data', (data: Buffer) => {
+      const text = data.toString().trim()
+      if (text) console.error(`[KamoX] VSCode stderr: ${text}`)
+    })
+
+    this.childProcess.on('exit', (code, signal) => {
+      console.log(`[KamoX] VSCode process exited: code=${code}, signal=${signal}`)
+    })
+
+    // Wait for CDP endpoint to be available
+    const cdpUrl = `http://127.0.0.1:${debugPort}/json/version`
+    let connected = false
+    for (let attempt = 0; attempt < 30; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      try {
+        const resp = await fetch(cdpUrl)
+        if (resp.ok) {
+          const info = await resp.json()
+          console.log(`[KamoX] CDP endpoint available: ${JSON.stringify(info).substring(0, 200)}`)
+          connected = true
+          break
+        }
+      } catch {
+        // Not ready yet
+      }
+      // Check if process died
+      if (this.childProcess?.exitCode !== null && this.childProcess?.exitCode !== undefined) {
+        throw new Error(`VSCode process exited early with code ${this.childProcess.exitCode}`)
+      }
+    }
+
+    if (!connected) {
+      throw new Error('Could not connect to VSCode CDP endpoint within timeout')
+    }
+
+    // Connect via Playwright CDP
+    console.log('[KamoX] Connecting via CDP...')
+    this.browser = await chromium.connectOverCDP(`http://127.0.0.1:${debugPort}`)
+
+    // Get the first page (VSCode workbench)
+    const pages = this.browser.contexts()[0]?.pages() || []
+    console.log(`[KamoX] Available pages: ${pages.length}`)
+
+    // Wait for workbench page
+    let workbenchPage = pages.find(p => p.url().includes('workbench') || p.url().includes('vscode'))
+    if (!workbenchPage) {
+      // Wait for a page to appear
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const allPages = this.browser.contexts()[0]?.pages() || []
+        if (allPages.length > 0) {
+          workbenchPage = allPages[0]
+          break
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+    }
+
+    if (!workbenchPage) {
+      throw new Error('No VSCode workbench page found')
+    }
+
+    this.page = workbenchPage
+    console.log(`[KamoX] Connected to page: ${this.page.url()}`)
+
+    // Wait for workbench to be ready
     await this.waitForWorkbench()
     console.log(`[KamoX] VSCode workbench ready. Extension loaded from: ${extensionAbsPath}`)
   }
@@ -104,7 +174,10 @@ export class PlaywrightVSCodeDriver implements IVSCodeUIDriver {
   }
 
   async quit(): Promise<void> {
-    await this.app?.close()
+    try { await this.browser?.close() } catch {}
+    this.browser = null
+    try { this.childProcess?.kill() } catch {}
+    this.childProcess = null
     this.app = null
     this.page = null
     // 一時ユーザーデータディレクトリをクリーンアップ
@@ -163,6 +236,28 @@ export class PlaywrightVSCodeDriver implements IVSCodeUIDriver {
 
   async evaluate(script: string): Promise<any> {
     if (!this.page) throw new Error('VSCode not launched')
+    // Check if script should run in webview (contains __WEBVIEW__ marker)
+    if (script.includes('__WEBVIEW__')) {
+      const cleanScript = script.replace('__WEBVIEW__', '')
+      // Try all frames (including nested ones)
+      const allFrames = this.page.frames()
+      console.log(`[KamoX] evaluate __WEBVIEW__: trying ${allFrames.length} frames`)
+      for (let i = 0; i < allFrames.length; i++) {
+        const frame = allFrames[i]
+        console.log(`[KamoX] Frame ${i}: url=${frame.url()?.substring(0, 100)}`)
+        if (frame === this.page.mainFrame()) continue
+        try {
+          const result = await frame.evaluate(cleanScript)
+          console.log(`[KamoX] Frame ${i} result: ${JSON.stringify(result)?.substring(0, 200)}`)
+          // If result looks like it found something, return it
+          if (result && result !== 'NO_PRE_IN_THIS_FRAME' && result !== 'NO_PRE') return result
+        } catch (e) {
+          console.log(`[KamoX] Frame ${i} error: ${(e as Error).message?.substring(0, 100)}`)
+        }
+      }
+      // Return last result even if NO_PRE
+      throw new Error('Could not find pre#ascii-output in any webview frame')
+    }
     return await this.page.evaluate(script)
   }
 
