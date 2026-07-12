@@ -1,6 +1,6 @@
 {
   "name": "@kamox/plugin-vscode",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "VSCode Extension adapter for KamoX - Automated testing and live preview for VSCode extensions using Playwright",
   "keywords": [
     "vscode",
