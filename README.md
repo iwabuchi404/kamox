@@ -1,17 +1,42 @@
-# ![KamoX Logo](https://raw.githubusercontent.com/iwabuchi404/kamox/main/images/logo_20251127.png) KamoX - Web Extension Dev Server
+
 
 [![npm version](https://badge.fury.io/js/kamox.svg)](https://badge.fury.io/js/kamox)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**English** | [日本語](README_ja.md)
+# KamoX
 
-**KamoX** is a plugin-based HTTP API server designed for **AI Coding Agents** (like Windsurf, Cursor, Devin) to live-preview, debug, and develop **Chrome Extensions** (Manifest V3), Electron apps, and VSCode extensions.
+**Give your AI coding agent eyes and hands for Chrome Extensions, Electron apps, and VSCode extensions.**
 
-It bridges the gap between AI agents and local development environments by providing a structured API for building, verifying UI, and retrieving logs.
+[badges: npm / MIT]  **English** | [日本語](README_ja.md)
 
-```bash
-npm install -g kamox
-```
+## ![KamoX Logo](https://raw.githubusercontent.com/iwabuchi404/kamox/main/images/logo_20251127.png) KamoX - Web Extension Dev Server
+
+## Why KamoX?
+
+AI coding agents (Claude Code, Cursor, Windsurf, Devin) are great at writing
+extension code — but they can't easily *see* the result. Plain Playwright
+doesn't cover the hard parts:
+
+- **Chrome Extensions (MV3)**: popup/service-worker contexts, extension
+  loading, content-script injection — none of it is one command away
+- **Electron**: launching the app with the right entry point and reading
+  main/renderer logs requires custom glue every time
+- **VSCode Extensions**: the Extension Host is effectively a black box
+
+KamoX wraps all of this in a single HTTP API. Your agent starts a server,
+then builds, screenshots, clicks, and reads logs — without you copy-pasting
+errors into chat.
+
+## Built for agents, not just humans
+
+Run `kamox guide --mode chrome` to print an LLM-optimized API reference
+your agent can consume directly. Point your CLAUDE.md / .cursorrules at it
+and the agent self-serves.
+
+> **Why HTTP instead of MCP?** Any agent that can run `curl` already has
+> everything it needs — no client setup, no config files, works with every
+> coding agent today. For a dev server, plain HTTP is the simplest
+> integration surface, so KamoX deliberately stays MCP-free.
 
 ## Quick Start
 
